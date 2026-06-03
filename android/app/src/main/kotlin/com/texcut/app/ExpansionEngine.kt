@@ -4,8 +4,23 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Where to put the text and caret after a shortcut fires. */
-data class ExpansionResult(val text: String, val cursor: Int)
+/**
+ * Describes how to apply an expansion to an editable field.
+ *
+ *  - [text]/[cursor] support the whole-field ACTION_SET_TEXT fallback.
+ *  - [replaceStart]/[replaceEnd]/[insertText] support the preferred
+ *    select-then-paste path, which only touches the shortcut span and flows
+ *    through the app's normal input pipeline so changes are actually committed
+ *    (apps like Google Keep autosave from their own text model and ignore
+ *    ACTION_SET_TEXT).
+ */
+data class ExpansionResult(
+    val text: String,
+    val cursor: Int,
+    val replaceStart: Int,
+    val replaceEnd: Int,
+    val insertText: String,
+)
 
 private data class Rendered(val text: String, val cursorOffset: Int?)
 
@@ -61,7 +76,16 @@ class ExpansionEngine {
             val newText = head.substring(0, matchStart) +
                 rendered.text + trailing + text.substring(cursor)
             val offset = rendered.cursorOffset ?: rendered.text.length
-            return ExpansionResult(newText, matchStart + offset)
+            // The shortcut span to select/replace is [matchStart, cursor minus
+            // the trailing delimiter] = [matchStart, matchStart + shortcutLen].
+            val replaceEnd = matchStart + s.shortcut.length
+            return ExpansionResult(
+                text = newText,
+                cursor = matchStart + offset,
+                replaceStart = matchStart,
+                replaceEnd = replaceEnd,
+                insertText = rendered.text,
+            )
         }
         return null
     }

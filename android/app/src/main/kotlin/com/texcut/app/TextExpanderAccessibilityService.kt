@@ -1,10 +1,13 @@
 package com.texcut.app
 
 import android.accessibilityservice.AccessibilityService
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -19,16 +22,25 @@ import android.view.accessibility.AccessibilityNodeInfo
  *  1. Android delivers a TYPE_VIEW_TEXT_CHANGED event for the focused field.
  *  2. We read the field's current text and caret position.
  *  3. [ExpansionEngine] decides whether a shortcut just completed.
- *  4. If so, we replace the entire field text (ACTION_SET_TEXT) and reposition
- *     the caret (ACTION_SET_SELECTION).
+ *  4. If so, we replace the shortcut with its expansion.
  *
- * A guard flag suppresses the echo event our own edit produces so we never
+ * Replacement strategy — paste first, set-text as fallback:
+ *  - Preferred: select the shortcut span and ACTION_PASTE the expansion. Paste
+ *    travels through the app's normal input pipeline, firing its TextWatchers
+ *    so the change is actually committed/saved. This fixes editors such as
+ *    Google Keep that autosave from their own text model and would otherwise
+ *    silently revert an ACTION_SET_TEXT change when you leave and return.
+ *  - Fallback: ACTION_SET_TEXT on the whole field, for nodes that don't honour
+ *    paste.
+ *
+ * A guard flag suppresses the echo events our own edit produces so we never
  * loop on ourselves.
  */
 class TextExpanderAccessibilityService : AccessibilityService() {
 
     private val store by lazy { SnippetStore(this) }
     private val engine = ExpansionEngine()
+    private val main = Handler(Looper.getMainLooper())
 
     @Volatile
     private var selfEdit = false
@@ -38,7 +50,7 @@ class TextExpanderAccessibilityService : AccessibilityService() {
         if (event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) return
 
         if (selfEdit) {
-            // This change is the result of our own ACTION_SET_TEXT; ignore it.
+            // This change is the result of our own edit; ignore it.
             selfEdit = false
             return
         }
@@ -68,29 +80,101 @@ class TextExpanderAccessibilityService : AccessibilityService() {
             clipboard = readClipboard()
         ) ?: return
 
-        applyExpansion(source, result, settings)
+        val applied = pasteExpansion(source, result) || setTextExpansion(source, result)
+        if (applied && settings.hapticFeedback) vibrate()
     }
 
-    private fun applyExpansion(
+    /**
+     * Selects the shortcut span and pastes the expansion over it. Returns true
+     * when the paste action was accepted by the node.
+     */
+    private fun pasteExpansion(
         node: AccessibilityNodeInfo,
-        result: ExpansionResult,
-        settings: Settings
-    ) {
+        result: ExpansionResult
+    ): Boolean {
+        val clipboard =
+            getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                ?: return false
+
+        // Select just the shortcut text.
+        val select = Bundle().apply {
+            putInt(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT,
+                result.replaceStart
+            )
+            putInt(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT,
+                result.replaceEnd
+            )
+        }
+        if (!node.performAction(
+                AccessibilityNodeInfo.ACTION_SET_SELECTION, select)
+        ) {
+            return false
+        }
+
+        // Stash whatever the user had on the clipboard so we can restore it.
+        val previousClip: ClipData? = try {
+            clipboard.primaryClip
+        } catch (e: Exception) {
+            null
+        }
+
+        clipboard.setPrimaryClip(
+            ClipData.newPlainText("texcut", result.insertText)
+        )
+
+        selfEdit = true
+        val pasted = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+        if (!pasted) {
+            selfEdit = false
+            restoreClip(clipboard, previousClip)
+            return false
+        }
+
+        // Place the caret (honours the {cursor} token) once paste settles, then
+        // put the user's clipboard back.
+        main.postDelayed({
+            try {
+                val caret = Bundle().apply {
+                    putInt(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT,
+                        result.cursor
+                    )
+                    putInt(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT,
+                        result.cursor
+                    )
+                }
+                node.performAction(
+                    AccessibilityNodeInfo.ACTION_SET_SELECTION, caret)
+            } catch (e: Exception) {
+                // Caret repositioning is best-effort.
+            }
+            restoreClip(clipboard, previousClip)
+        }, 120)
+
+        return true
+    }
+
+    /** Whole-field replacement fallback for nodes that reject paste. */
+    private fun setTextExpansion(
+        node: AccessibilityNodeInfo,
+        result: ExpansionResult
+    ): Boolean {
         val setText = Bundle().apply {
             putCharSequence(
                 AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
                 result.text
             )
         }
-
         selfEdit = true
         val ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setText)
         if (!ok) {
             selfEdit = false
-            return
+            return false
         }
-
-        val setSelection = Bundle().apply {
+        val caret = Bundle().apply {
             putInt(
                 AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT,
                 result.cursor
@@ -100,9 +184,18 @@ class TextExpanderAccessibilityService : AccessibilityService() {
                 result.cursor
             )
         }
-        node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, setSelection)
+        node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, caret)
+        return true
+    }
 
-        if (settings.hapticFeedback) vibrate()
+    private fun restoreClip(clipboard: ClipboardManager, clip: ClipData?) {
+        try {
+            if (clip != null) {
+                clipboard.setPrimaryClip(clip)
+            }
+        } catch (e: Exception) {
+            // Ignore — restoring the clipboard is best-effort.
+        }
     }
 
     /**

@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'services/drive_sync.dart';
 import 'services/snippet_repository.dart';
 import 'state/app_state.dart';
 import 'ui/screens/home_screen.dart';
@@ -12,9 +15,16 @@ Future<void> main() async {
   final appState = AppState(repository: repository);
   await appState.load();
 
+  final driveSync = DriveSync(appState);
+  // Fire-and-forget: attempts a silent sign-in + pull if previously connected.
+  unawaited(driveSync.init());
+
   runApp(
-    ChangeNotifierProvider.value(
-      value: appState,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: appState),
+        ChangeNotifierProvider.value(value: driveSync),
+      ],
       child: const TexcutApp(),
     ),
   );

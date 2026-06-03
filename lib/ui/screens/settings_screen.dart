@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/expansion_settings.dart';
+import '../../services/drive_sync.dart';
 import '../../state/app_state.dart';
 import '../widgets/enable_guide_sheet.dart';
 import 'about_screen.dart';
@@ -114,6 +115,8 @@ class SettingsScreen extends StatelessWidget {
                   state.updateSettings(s.copyWith(timeFormat: v)),
             ),
           ),
+          _sectionHeader(context, 'Google Drive sync'),
+          const _DriveSyncTiles(),
           _sectionHeader(context, 'Backup'),
           ListTile(
             leading: const Icon(Icons.upload_rounded),
@@ -263,6 +266,82 @@ class SettingsScreen extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('That doesn’t look like a valid export')),
       );
+    }
+  }
+}
+
+/// Google Drive account + sync controls.
+class _DriveSyncTiles extends StatelessWidget {
+  const _DriveSyncTiles();
+
+  @override
+  Widget build(BuildContext context) {
+    final sync = context.watch<DriveSync>();
+
+    if (!sync.isSignedIn) {
+      return ListTile(
+        leading: const Icon(Icons.cloud_outlined),
+        title: const Text('Sign in with Google'),
+        subtitle: Text(
+          sync.status == SyncStatus.error
+              ? (sync.message ?? 'Sign-in failed')
+              : 'Back up and sync your snippets to your Drive',
+        ),
+        trailing: sync.status == SyncStatus.syncing
+            ? const SizedBox(
+                width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.login_rounded),
+        onTap: () => sync.signIn(),
+      );
+    }
+
+    return Column(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.cloud_done_rounded, color: Colors.green),
+          title: Text(sync.account?.email ?? 'Signed in'),
+          subtitle: Text(_statusLine(sync)),
+          trailing: TextButton(
+            onPressed: () => sync.signOut(),
+            child: const Text('Sign out'),
+          ),
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.sync_rounded),
+          title: const Text('Auto-sync'),
+          subtitle: const Text('Upload changes to Drive automatically'),
+          value: sync.autoSync,
+          onChanged: (v) => sync.setAutoSync(v),
+        ),
+        ListTile(
+          leading: const Icon(Icons.cloud_sync_rounded),
+          title: const Text('Sync now'),
+          subtitle: const Text('Pull from Drive, merge, and upload'),
+          trailing: sync.status == SyncStatus.syncing
+              ? const SizedBox(
+                  width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              : null,
+          onTap: sync.status == SyncStatus.syncing ? null : () => sync.syncNow(),
+        ),
+      ],
+    );
+  }
+
+  String _statusLine(DriveSync sync) {
+    switch (sync.status) {
+      case SyncStatus.syncing:
+        return 'Syncing…';
+      case SyncStatus.error:
+        return sync.message ?? 'Last sync failed';
+      case SyncStatus.success:
+      case SyncStatus.idle:
+        final t = sync.lastSynced;
+        return t == null
+            ? 'Connected'
+            : 'Last synced ${t.hour.toString().padLeft(2, '0')}:'
+                '${t.minute.toString().padLeft(2, '0')}';
+      case SyncStatus.signedOut:
+        return 'Connected';
     }
   }
 }

@@ -20,6 +20,11 @@ class AppState extends ChangeNotifier {
   final SnippetRepository _repo;
   final NativeBridge _bridge;
 
+  /// Invoked after any snippet/settings change is persisted, so an external
+  /// syncer (e.g. Google Drive) can push the latest data. Set by the sync
+  /// layer; null when sync is off.
+  VoidCallback? onDataChanged;
+
   List<Snippet> _snippets = [];
   ExpansionSettings _settings = const ExpansionSettings();
   bool _serviceConnected = false;
@@ -145,7 +150,14 @@ class AppState extends ChangeNotifier {
     _settings = settings;
     await _repo.saveSettings(settings);
     await _bridge.notifyDataChanged();
+    onDataChanged?.call();
     notifyListeners();
+  }
+
+  /// Replaces all snippets/settings from synced data without re-triggering an
+  /// upstream push (used when applying data pulled from Drive).
+  Future<void> applySyncedData(String rawJson) async {
+    await importFromJson(rawJson, merge: true, silent: true);
   }
 
   /// Serialises the whole library to a JSON document for backup / sharing.
@@ -164,7 +176,8 @@ class AppState extends ChangeNotifier {
   ///
   /// When [merge] is true, snippets are added/updated by shortcut; otherwise the
   /// existing library is replaced. Returns the number of snippets imported.
-  Future<int> importFromJson(String raw, {bool merge = true}) async {
+  Future<int> importFromJson(String raw,
+      {bool merge = true, bool silent = false}) async {
     final doc = jsonDecode(raw) as Map<String, dynamic>;
     final incoming = (doc['snippets'] as List<dynamic>)
         .map((e) => Snippet.fromJson(e as Map<String, dynamic>))
@@ -189,12 +202,13 @@ class AppState extends ChangeNotifier {
           doc['settings'] as Map<String, dynamic>);
       await _repo.saveSettings(_settings);
     }
-    await _persistSnippets();
+    await _persistSnippets(silent: silent);
     return incoming.length;
   }
 
-  Future<void> _persistSnippets() async {
+  Future<void> _persistSnippets({bool silent = false}) async {
     await _repo.saveSnippets(_snippets);
+    if (!silent) onDataChanged?.call();
     await _bridge.notifyDataChanged();
     notifyListeners();
   }

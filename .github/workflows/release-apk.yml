@@ -1,14 +1,20 @@
 name: Build & Release APK
 
-# Builds the texcut release APK on GitHub's runners (which have the Android SDK
-# and full network access) and publishes it as a GitHub Release asset.
+# Builds the texcut release APKs on GitHub's runners (which have the Android SDK
+# and full network access) and publishes them as GitHub Release assets.
+#
+# We build per-ABI (per processor type) APKs instead of one fat universal APK,
+# so each download is far smaller (~18 MB arm64 vs ~47 MB universal).
 #
 # Triggers:
-#   - pushing a tag like v1.0.0  -> builds and creates/updates that release
-#   - manual "Run workflow"      -> builds and releases under the given tag
+#   - push to main         -> rebuilds and updates the rolling "latest" prerelease
+#   - pushing a tag (v*)    -> publishes a stable versioned release
+#   - manual "Run workflow" -> publishes under the tag you supply
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
   workflow_dispatch:
@@ -16,7 +22,7 @@ on:
       tag:
         description: "Release tag to publish under"
         required: true
-        default: "v1.0.0"
+        default: "v1.0.1"
 
 permissions:
   contents: write
@@ -41,9 +47,22 @@ jobs:
           flutter-version: 3.44.1
           cache: true
 
-      - name: Resolve tag
-        id: tag
-        run: echo "value=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+      - name: Determine release info
+        id: rel
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "name=texcut ${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "name=texcut ${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+            echo "name=texcut (latest main build)" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install dependencies
         run: flutter pub get
@@ -51,25 +70,30 @@ jobs:
       - name: Run tests
         run: flutter test
 
-      - name: Build release APK
-        run: flutter build apk --release
+      - name: Build per-ABI release APKs
+        run: flutter build apk --release --split-per-abi
 
-      - name: Stage artifact
+      - name: Stage artifacts
         run: |
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk \
-             "dist/texcut-${{ steps.tag.outputs.value }}.apk"
+          tag="${{ steps.rel.outputs.tag }}"
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            src="build/app/outputs/flutter-apk/app-${abi}-release.apk"
+            [ -f "$src" ] && cp "$src" "dist/texcut-${tag}-${abi}.apk"
+          done
+          ls -lh dist
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: texcut-apk
+          name: texcut-apks
           path: dist/*.apk
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.value }}
-          name: texcut ${{ steps.tag.outputs.value }}
+          tag_name: ${{ steps.rel.outputs.tag }}
+          name: ${{ steps.rel.outputs.name }}
+          prerelease: ${{ steps.rel.outputs.prerelease }}
           generate_release_notes: true
           files: dist/*.apk

@@ -21,7 +21,7 @@ class TexcutTheme {
           borderRadius: BorderRadius.circular(12),
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),

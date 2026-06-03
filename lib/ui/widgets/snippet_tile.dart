@@ -26,7 +26,7 @@ class SnippetTile extends StatelessWidget {
         onTap: onTap,
         leading: CircleAvatar(
           backgroundColor:
-              snippet.enabled ? scheme.primaryContainer : scheme.surfaceVariant,
+              snippet.enabled ? scheme.primaryContainer : scheme.surfaceContainerHighest,
           foregroundColor: snippet.enabled
               ? scheme.onPrimaryContainer
               : scheme.onSurfaceVariant,
@@ -48,7 +48,7 @@ class SnippetTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: scheme.surfaceVariant,
+                color: scheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(

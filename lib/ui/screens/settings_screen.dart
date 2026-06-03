@@ -62,7 +62,7 @@ class SettingsScreen extends StatelessWidget {
                 state.updateSettings(s.copyWith(requireWordBoundary: v)),
           ),
           SwitchListTile(
-            secondary: const Icon(Icons.match_case_rounded),
+            secondary: const Icon(Icons.text_format_rounded),
             title: const Text('Case sensitive'),
             subtitle: const Text('“;BR” and “;br” are treated as different'),
             value: s.caseSensitive,

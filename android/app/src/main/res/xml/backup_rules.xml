@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android Auto Backup rules (Android 11 and below).
+  texcut keeps all snippets and settings in the Flutter shared-preferences
+  file, so backing that up means a reinstall restores everything from the
+  user's Google account automatically.
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="FlutterSharedPreferences.xml" />
+</full-backup-content>

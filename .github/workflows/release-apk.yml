@@ -64,6 +64,26 @@ jobs:
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Configure release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+            {
+              echo "storeFile=app/release.jks"
+              echo "storePassword=$KEYSTORE_PASSWORD"
+              echo "keyAlias=$KEY_ALIAS"
+              echo "keyPassword=$KEY_PASSWORD"
+            } > android/key.properties
+            echo "Release signing configured with permanent keystore."
+          else
+            echo "No KEYSTORE_BASE64 secret set — falling back to debug signing."
+          fi
+
       - name: Install dependencies
         run: flutter pub get
 

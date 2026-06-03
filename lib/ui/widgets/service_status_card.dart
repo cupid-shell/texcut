@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/app_state.dart';
+import 'enable_guide_sheet.dart';
 
-/// Banner that surfaces whether system-wide expansion is currently active and
-/// lets the user jump to the OS accessibility settings to enable it.
+/// Banner that surfaces whether system-wide expansion is active and, when it
+/// isn't, opens a guided sheet to turn it on (handles the Android 13+
+/// "restricted settings" hurdle).
 class ServiceStatusCard extends StatelessWidget {
   const ServiceStatusCard({super.key});
 
@@ -13,64 +15,74 @@ class ServiceStatusCard extends StatelessWidget {
     final state = context.watch<AppState>();
     final connected = state.serviceConnected;
     final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
 
-    final bg = connected ? scheme.secondaryContainer : scheme.errorContainer;
-    final fg =
-        connected ? scheme.onSecondaryContainer : scheme.onErrorContainer;
+    final Color bg =
+        connected ? scheme.secondaryContainer : scheme.tertiaryContainer;
+    final Color fg =
+        connected ? scheme.onSecondaryContainer : scheme.onTertiaryContainer;
 
-    return Card(
-      color: bg,
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(
-              connected ? Icons.verified_rounded : Icons.error_outline_rounded,
-              color: fg,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    connected
-                        ? 'System-wide expansion is active'
-                        : 'Enable system-wide expansion',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(color: fg),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Material(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: connected
+              ? state.refreshServiceStatus
+              : () => showEnableGuide(context),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: fg.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
+                  child: Icon(
                     connected
-                        ? 'Your shortcuts expand in any app.'
-                        : 'Turn on the texcut accessibility service to expand text anywhere.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: fg),
+                        ? Icons.verified_rounded
+                        : Icons.bolt_rounded,
+                    color: fg,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        connected
+                            ? 'System-wide expansion is on'
+                            : 'Turn on system-wide expansion',
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(color: fg, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        connected
+                            ? 'Your shortcuts expand in every app.'
+                            : 'Tap to enable it in a couple of steps.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: fg.withValues(alpha: 0.85)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  connected
+                      ? Icons.refresh_rounded
+                      : Icons.chevron_right_rounded,
+                  color: fg,
+                ),
+              ],
             ),
-            if (!connected)
-              TextButton(
-                onPressed: () async {
-                  await state.openSystemSettings();
-                },
-                style: TextButton.styleFrom(foregroundColor: fg),
-                child: const Text('Open'),
-              )
-            else
-              IconButton(
-                tooltip: 'Refresh status',
-                onPressed: state.refreshServiceStatus,
-                icon: Icon(Icons.refresh_rounded, color: fg),
-              ),
-          ],
+          ),
         ),
       ),
     );

@@ -1,6 +1,7 @@
 package com.texcut.app
 
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -25,6 +26,19 @@ class MainActivity : FlutterActivity() {
                 "isServiceEnabled" -> result.success(isAccessibilityServiceEnabled())
                 "openAccessibilitySettings" -> {
                     val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    result.success(null)
+                }
+                "openAppSettings" -> {
+                    // Opens texcut's App info page. On Android 13+ this is where
+                    // the "Allow restricted settings" menu item appears, which
+                    // must be tapped before a sideloaded app can be granted
+                    // accessibility access.
+                    val intent = Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", packageName, null)
+                    )
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     startActivity(intent)
                     result.success(null)

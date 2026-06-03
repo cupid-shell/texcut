@@ -56,11 +56,7 @@ class _EditSnippetScreenState extends State<EditSnippetScreen> {
     final state = context.read<AppState>();
 
     final base = widget.snippet ??
-        Snippet(
-          id: Snippet.newId(),
-          shortcut: '',
-          expansion: '',
-        );
+        Snippet(id: Snippet.newId(), shortcut: '', expansion: '');
     final updated = base.copyWith(
       shortcut: _shortcut.text.trim(),
       expansion: _expansion.text,
@@ -86,138 +82,215 @@ class _EditSnippetScreenState extends State<EditSnippetScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.read<AppState>().settings;
-    final expander = Expander(settings);
+    final state = context.read<AppState>();
+    final expander = Expander(state.settings);
     final rendered = expander.render(
       _expansion.text,
       now: DateTime.now(),
       clipboard: '«clipboard»',
     );
+    final existingGroups = state.groups;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(_isNew ? 'New snippet' : 'Edit snippet'),
-        actions: [
-          TextButton(
-            onPressed: _save,
-            child: const Text('Save'),
-          ),
-        ],
       ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            TextFormField(
-              controller: _shortcut,
-              autofocus: _isNew,
-              decoration: const InputDecoration(
-                labelText: 'Shortcut',
-                helperText: 'What you type, e.g. ;email',
-                prefixIcon: Icon(Icons.keyboard_rounded),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return 'Enter a shortcut';
-                }
-                final state = context.read<AppState>();
-                final clash = state.snippets.any((s) =>
-                    s.id != widget.snippet?.id &&
-                    s.shortcut == v.trim());
-                if (clash) return 'Another snippet already uses this shortcut';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _expansion,
-              minLines: 3,
-              maxLines: 8,
-              decoration: const InputDecoration(
-                labelText: 'Expands to',
-                alignLabelWithHint: true,
-                prefixIcon: Padding(
-                  padding: EdgeInsets.only(bottom: 64),
-                  child: Icon(Icons.notes_rounded),
+            _Section(
+              title: 'Shortcut',
+              icon: Icons.keyboard_rounded,
+              child: TextFormField(
+                controller: _shortcut,
+                autofocus: _isNew,
+                decoration: const InputDecoration(
+                  hintText: 'What you type, e.g. ;email',
                 ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Enter a shortcut';
+                  }
+                  final clash = state.snippets.any((s) =>
+                      s.id != widget.snippet?.id && s.shortcut == v.trim());
+                  if (clash) return 'Another snippet already uses this shortcut';
+                  return null;
+                },
               ),
-              validator: (v) =>
-                  (v == null || v.isEmpty) ? 'Enter the expansion text' : null,
             ),
-            const SizedBox(height: 8),
-            _TokenBar(onInsert: _insertToken),
-            const SizedBox(height: 16),
-            _PreviewCard(text: rendered.text),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
+            _Section(
+              title: 'Expands to',
+              icon: Icons.notes_rounded,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: _expansion,
+                    minLines: 3,
+                    maxLines: 8,
+                    decoration: const InputDecoration(
+                      hintText: 'The full text this expands into…',
+                    ),
+                    validator: (v) => (v == null || v.isEmpty)
+                        ? 'Enter the expansion text'
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Insert a dynamic value',
+                      style: Theme.of(context).textTheme.labelMedium),
+                  const SizedBox(height: 6),
+                  _TokenBar(onInsert: _insertToken),
+                  const SizedBox(height: 12),
+                  _PreviewCard(text: rendered.text),
+                ],
+              ),
+            ),
+            _Section(
+              title: 'Details',
+              icon: Icons.tune_rounded,
+              child: Column(
+                children: [
+                  TextFormField(
                     controller: _label,
                     decoration: const InputDecoration(
                       labelText: 'Label (optional)',
                       prefixIcon: Icon(Icons.label_outline_rounded),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
+                  const SizedBox(height: 12),
+                  TextFormField(
                     controller: _group,
                     decoration: const InputDecoration(
                       labelText: 'Group',
                       prefixIcon: Icon(Icons.folder_outlined),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              value: _enabled,
-              onChanged: (v) => setState(() => _enabled = v),
-              title: const Text('Enabled'),
-              subtitle: const Text('Disabled snippets never expand'),
-              contentPadding: EdgeInsets.zero,
-            ),
-            const Divider(height: 32),
-            Text('Try it out', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _tryIt,
-              minLines: 2,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                hintText: 'Type your shortcut here to test the expansion…',
-              ),
-              onChanged: (value) {
-                final result = expander.expand(
-                  text: value,
-                  cursor: _tryIt.selection.baseOffset >= 0
-                      ? _tryIt.selection.baseOffset
-                      : value.length,
-                  snippets: [
-                    Snippet(
-                      id: 'preview',
-                      shortcut: _shortcut.text.trim(),
-                      expansion: _expansion.text,
+                  if (existingGroups.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          for (final g in existingGroups)
+                            ActionChip(
+                              label: Text(g),
+                              onPressed: () =>
+                                  setState(() => _group.text = g),
+                            ),
+                        ],
+                      ),
                     ),
                   ],
-                  clipboard: '«clipboard»',
-                );
-                if (result != null) {
-                  _tryIt.value = TextEditingValue(
-                    text: result.text,
-                    selection:
-                        TextSelection.collapsed(offset: result.cursor),
+                  const SizedBox(height: 4),
+                  SwitchListTile(
+                    value: _enabled,
+                    onChanged: (v) => setState(() => _enabled = v),
+                    title: const Text('Enabled'),
+                    subtitle: const Text('Disabled snippets never expand'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ),
+            _Section(
+              title: 'Try it out',
+              icon: Icons.play_circle_outline_rounded,
+              child: TextField(
+                controller: _tryIt,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  hintText: 'Type your shortcut here to test the expansion…',
+                ),
+                onChanged: (value) {
+                  final result = expander.expand(
+                    text: value,
+                    cursor: _tryIt.selection.baseOffset >= 0
+                        ? _tryIt.selection.baseOffset
+                        : value.length,
+                    snippets: [
+                      Snippet(
+                        id: 'preview',
+                        shortcut: _shortcut.text.trim(),
+                        expansion: _expansion.text,
+                      ),
+                    ],
+                    clipboard: '«clipboard»',
                   );
-                  HapticFeedback.selectionClick();
-                }
-              },
+                  if (result != null) {
+                    _tryIt.value = TextEditingValue(
+                      text: result.text,
+                      selection:
+                          TextSelection.collapsed(offset: result.cursor),
+                    );
+                    HapticFeedback.selectionClick();
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _save,
+              icon: const Icon(Icons.check_rounded),
+              label: Text(_isNew ? 'Create snippet' : 'Save changes'),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A titled section with an icon header and a card body.
+class _Section extends StatelessWidget {
+  const _Section({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  title.toUpperCase(),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                    letterSpacing: 0.8,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Card(
+            elevation: 0,
+            color: theme.colorScheme.surfaceContainerLow,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: child,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -258,28 +331,30 @@ class _PreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.preview_rounded, size: 18),
-                const SizedBox(width: 6),
-                Text('Preview',
-                    style: Theme.of(context).textTheme.labelLarge),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SelectableText(
-              text.isEmpty ? '—' : text,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ],
-        ),
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.preview_rounded, size: 16, color: scheme.primary),
+              const SizedBox(width: 6),
+              Text('Preview', style: Theme.of(context).textTheme.labelLarge),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SelectableText(
+            text.isEmpty ? '—' : text,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
       ),
     );
   }

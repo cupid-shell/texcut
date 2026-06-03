@@ -36,6 +36,19 @@ class NativeBridge {
     }
   }
 
+  /// Opens texcut's own "App info" page, where the "Allow restricted settings"
+  /// option lives on Android 13+ (needed before accessibility can be granted to
+  /// a sideloaded app).
+  Future<void> openAppSettings() async {
+    try {
+      await _channel.invokeMethod('openAppSettings');
+    } on MissingPluginException {
+      // Not on Android — nothing to open.
+    } on PlatformException {
+      // Ignore; the guide explains the manual path too.
+    }
+  }
+
   /// Tells the running service to reload snippets/settings from storage.
   Future<void> notifyDataChanged() async {
     try {

@@ -24,32 +24,56 @@ class AppState extends ChangeNotifier {
   ExpansionSettings _settings = const ExpansionSettings();
   bool _serviceConnected = false;
   String _query = '';
+  String? _groupFilter;
 
   List<Snippet> get snippets => List.unmodifiable(_snippets);
   ExpansionSettings get settings => _settings;
   bool get serviceConnected => _serviceConnected;
   String get query => _query;
 
-  /// Snippets filtered by the current search query.
+  /// The currently selected group filter, or null for "All".
+  String? get groupFilter => _groupFilter;
+
+  int get totalCount => _snippets.length;
+  int get enabledCount => _snippets.where((s) => s.enabled).length;
+
+  /// Snippets filtered by the current search query and group filter.
   List<Snippet> get visibleSnippets {
     final q = _query.trim().toLowerCase();
-    final list = q.isEmpty
-        ? _snippets
-        : _snippets.where((s) {
-            return s.shortcut.toLowerCase().contains(q) ||
-                s.expansion.toLowerCase().contains(q) ||
-                s.label.toLowerCase().contains(q) ||
-                s.group.toLowerCase().contains(q);
-          }).toList();
-    final sorted = [...list]
-      ..sort((a, b) =>
-          a.displayTitle.toLowerCase().compareTo(b.displayTitle.toLowerCase()));
-    return sorted;
+    final list = _snippets.where((s) {
+      if (_groupFilter != null && s.group != _groupFilter) return false;
+      if (q.isEmpty) return true;
+      return s.shortcut.toLowerCase().contains(q) ||
+          s.expansion.toLowerCase().contains(q) ||
+          s.label.toLowerCase().contains(q) ||
+          s.group.toLowerCase().contains(q);
+    }).toList();
+    list.sort((a, b) =>
+        a.displayTitle.toLowerCase().compareTo(b.displayTitle.toLowerCase()));
+    return list;
+  }
+
+  /// Visible snippets bucketed by group, with group names sorted A→Z.
+  Map<String, List<Snippet>> get visibleByGroup {
+    final map = <String, List<Snippet>>{};
+    for (final s in visibleSnippets) {
+      map.putIfAbsent(s.group, () => []).add(s);
+    }
+    return Map.fromEntries(
+      map.entries.toList()
+        ..sort((a, b) =>
+            a.key.toLowerCase().compareTo(b.key.toLowerCase())),
+    );
   }
 
   List<String> get groups {
     final set = _snippets.map((s) => s.group).toSet().toList()..sort();
     return set;
+  }
+
+  void setGroupFilter(String? group) {
+    _groupFilter = group;
+    notifyListeners();
   }
 
   Future<void> load() async {
@@ -70,6 +94,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> openSystemSettings() => _bridge.openAccessibilitySettings();
+
+  /// Opens texcut's App info page (for the Android 13+ "Allow restricted
+  /// settings" step).
+  Future<void> openAppSettings() => _bridge.openAppSettings();
 
   void setQuery(String value) {
     _query = value;

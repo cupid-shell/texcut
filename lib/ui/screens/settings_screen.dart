@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/expansion_settings.dart';
 import '../../state/app_state.dart';
+import '../widgets/enable_guide_sheet.dart';
 import 'about_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -41,9 +42,20 @@ class SettingsScreen extends StatelessWidget {
             title: const Text('Accessibility service'),
             subtitle: Text(state.serviceConnected
                 ? 'Connected'
-                : 'Not connected — tap to open system settings'),
-            trailing: const Icon(Icons.open_in_new_rounded),
-            onTap: state.openSystemSettings,
+                : 'Not connected — tap for setup help'),
+            trailing: Icon(state.serviceConnected
+                ? Icons.open_in_new_rounded
+                : Icons.help_outline_rounded),
+            onTap: () => state.serviceConnected
+                ? state.openSystemSettings()
+                : showEnableGuide(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.menu_book_rounded),
+            title: const Text('How to enable on Android 13+'),
+            subtitle: const Text(
+                'Walks you through the “Allow restricted settings” step'),
+            onTap: () => showEnableGuide(context),
           ),
           _sectionHeader(context, 'Triggering'),
           ListTile(
@@ -144,23 +156,24 @@ class SettingsScreen extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final mode in TriggerMode.values)
-              RadioListTile<TriggerMode>(
-                value: mode,
-                groupValue: state.settings.triggerMode,
-                title: Text(mode.label),
-                onChanged: (v) {
-                  if (v != null) {
-                    state.updateSettings(
-                        state.settings.copyWith(triggerMode: v));
-                  }
-                  Navigator.pop(context);
-                },
-              ),
-          ],
+        child: RadioGroup<TriggerMode>(
+          groupValue: state.settings.triggerMode,
+          onChanged: (v) {
+            if (v != null) {
+              state.updateSettings(state.settings.copyWith(triggerMode: v));
+            }
+            Navigator.pop(context);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final mode in TriggerMode.values)
+                RadioListTile<TriggerMode>(
+                  value: mode,
+                  title: Text(mode.label),
+                ),
+            ],
+          ),
         ),
       ),
     );

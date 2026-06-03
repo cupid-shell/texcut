@@ -33,7 +33,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Re-check whether the user enabled the service while we were backgrounded.
     if (state == AppLifecycleState.resumed) {
       context.read<AppState>().refreshServiceStatus();
     }
@@ -41,16 +40,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _openEditor([Snippet? snippet]) async {
     await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => EditSnippetScreen(snippet: snippet),
-      ),
+      MaterialPageRoute(builder: (_) => EditSnippetScreen(snippet: snippet)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final snippets = state.visibleSnippets;
+    final grouped = state.visibleByGroup;
+    final hasAnySnippets = state.totalCount > 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -70,68 +68,78 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         icon: const Icon(Icons.add_rounded),
         label: const Text('New snippet'),
       ),
-      body: Column(
-        children: [
-          const ServiceStatusCard(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              onChanged: state.setQuery,
-              decoration: InputDecoration(
-                hintText: 'Search shortcuts, text or groups',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: state.query.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear_rounded),
-                        onPressed: () {
-                          _searchController.clear();
-                          state.setQuery('');
-                        },
-                      ),
+      body: CustomScrollView(
+        slivers: [
+          const SliverToBoxAdapter(child: ServiceStatusCard()),
+          if (hasAnySnippets)
+            SliverToBoxAdapter(child: _StatsBar(state: state)),
+          SliverToBoxAdapter(child: _SearchField(controller: _searchController)),
+          if (state.groups.length > 1)
+            SliverToBoxAdapter(child: _GroupFilterChips(state: state)),
+          if (grouped.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: _EmptyState(
+                hasFilter: state.query.isNotEmpty || state.groupFilter != null,
               ),
-            ),
-          ),
-          Expanded(
-            child: snippets.isEmpty
-                ? _EmptyState(hasQuery: state.query.isNotEmpty)
-                : ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 96),
-                    itemCount: snippets.length,
-                    itemBuilder: (context, index) {
-                      final s = snippets[index];
-                      return Dismissible(
-                        key: ValueKey(s.id),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 28),
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(
-                            Icons.delete_rounded,
-                            color:
-                                Theme.of(context).colorScheme.onErrorContainer,
-                          ),
-                        ),
-                        confirmDismiss: (_) => _confirmDelete(s),
-                        onDismissed: (_) => state.delete(s.id),
-                        child: SnippetTile(
-                          snippet: s,
-                          onTap: () => _openEditor(s),
-                          onToggle: (v) => state.toggleEnabled(s.id, v),
-                        ),
-                      );
-                    },
-                  ),
-          ),
+            )
+          else
+            ..._buildGroupedSlivers(context, state, grouped),
+          const SliverToBoxAdapter(child: SizedBox(height: 96)),
         ],
       ),
+    );
+  }
+
+  List<Widget> _buildGroupedSlivers(
+    BuildContext context,
+    AppState state,
+    Map<String, List<Snippet>> grouped,
+  ) {
+    final slivers = <Widget>[];
+    grouped.forEach((group, items) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _GroupHeader(name: group, count: items.length),
+        ),
+      );
+      slivers.add(
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final s = items[index];
+              return Dismissible(
+                key: ValueKey(s.id),
+                direction: DismissDirection.endToStart,
+                background: _deleteBackground(context),
+                confirmDismiss: (_) => _confirmDelete(s),
+                onDismissed: (_) => state.delete(s.id),
+                child: SnippetTile(
+                  snippet: s,
+                  onTap: () => _openEditor(s),
+                  onToggle: (v) => state.toggleEnabled(s.id, v),
+                ),
+              );
+            },
+            childCount: items.length,
+          ),
+        ),
+      );
+    });
+    return slivers;
+  }
+
+  Widget _deleteBackground(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 28),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Icon(Icons.delete_rounded, color: scheme.onErrorContainer),
     );
   }
 
@@ -157,9 +165,142 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 }
 
+class _StatsBar extends StatelessWidget {
+  const _StatsBar({required this.state});
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      child: Row(
+        children: [
+          Icon(Icons.bolt_rounded,
+              size: 18, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(
+            '${state.totalCount} snippets',
+            style: theme.textTheme.labelLarge,
+          ),
+          Text(
+            '  •  ${state.enabledCount} active',
+            style: theme.textTheme.labelLarge
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.controller});
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: SearchBar(
+        controller: controller,
+        hintText: 'Search shortcuts or text',
+        leading: const Icon(Icons.search_rounded),
+        elevation: const WidgetStatePropertyAll(0),
+        backgroundColor: WidgetStatePropertyAll(
+          Theme.of(context).colorScheme.surfaceContainerHighest,
+        ),
+        onChanged: state.setQuery,
+        trailing: [
+          if (state.query.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.clear_rounded),
+              onPressed: () {
+                controller.clear();
+                state.setQuery('');
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupFilterChips extends StatelessWidget {
+  const _GroupFilterChips({required this.state});
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = state.groups;
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: const Text('All'),
+              selected: state.groupFilter == null,
+              onSelected: (_) => state.setGroupFilter(null),
+            ),
+          ),
+          for (final g in groups)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                label: Text(g),
+                selected: state.groupFilter == g,
+                onSelected: (sel) => state.setGroupFilter(sel ? g : null),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({required this.name, required this.count});
+  final String name;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+      child: Row(
+        children: [
+          Icon(Icons.folder_rounded,
+              size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            name.toUpperCase(),
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.primary,
+              letterSpacing: 0.8,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '$count',
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.hasQuery});
-  final bool hasQuery;
+  const _EmptyState({required this.hasFilter});
+  final bool hasFilter;
 
   @override
   Widget build(BuildContext context) {
@@ -170,19 +311,19 @@ class _EmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              hasQuery ? Icons.search_off_rounded : Icons.bolt_rounded,
+              hasFilter ? Icons.search_off_rounded : Icons.bolt_rounded,
               size: 64,
               color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 16),
             Text(
-              hasQuery ? 'No matches' : 'No snippets yet',
+              hasFilter ? 'No matches' : 'No snippets yet',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              hasQuery
-                  ? 'Try a different search.'
+              hasFilter
+                  ? 'Try a different search or group.'
                   : 'Tap “New snippet” to create your first expansion.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,

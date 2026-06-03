@@ -17,58 +17,72 @@ class SnippetTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final preview = snippet.expansion.replaceAll('\n', ' ↵ ');
+    final enabled = snippet.enabled;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: ListTile(
+      elevation: 0,
+      color: scheme.surfaceContainerLow,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      child: InkWell(
         onTap: onTap,
-        leading: CircleAvatar(
-          backgroundColor:
-              snippet.enabled ? scheme.primaryContainer : scheme.surfaceContainerHighest,
-          foregroundColor: snippet.enabled
-              ? scheme.onPrimaryContainer
-              : scheme.onSurfaceVariant,
-          child: const Icon(Icons.short_text_rounded),
-        ),
-        title: Row(
-          children: [
-            Flexible(
-              child: Text(
-                snippet.shortcut,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontWeight: FontWeight.w600,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // The shortcut, shown as a code-style pill.
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: enabled
+                            ? scheme.primaryContainer
+                            : scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Text(
+                        snippet.shortcut,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.w600,
+                          color: enabled
+                              ? scheme.onPrimaryContainer
+                              : scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    if (snippet.label.trim().isNotEmpty) ...[
+                      Text(
+                        snippet.label,
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w500),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                    ],
+                    Text(
+                      preview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                snippet.group,
-                style: Theme.of(context).textTheme.labelSmall,
-              ),
-            ),
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            preview,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+              Switch(value: enabled, onChanged: onToggle),
+            ],
           ),
-        ),
-        trailing: Switch(
-          value: snippet.enabled,
-          onChanged: onToggle,
         ),
       ),
     );

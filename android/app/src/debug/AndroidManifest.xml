@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Flutter needs INTERNET for the Dart VM service / hot reload in
-         debug and profile builds; it is not bundled in release. -->
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The INTERNET permission is required for development. Specifically,
+         the Flutter tool needs it to communicate with the running application
+         to allow setting breakpoints, to provide hot reload, etc.
+    -->
+    <uses-permission android:name="android.permission.INTERNET"/>
 </manifest>

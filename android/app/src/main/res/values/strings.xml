@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">texcut</string>
+    <string name="accessibility_service_label">texcut text expander</string>
+    <string name="accessibility_service_description">Lets texcut expand your shortcuts into full text in any app. texcut watches the field you are typing in, and when it sees one of your shortcuts it replaces it with the matching snippet. Your snippets never leave your device.</string>
+</resources>

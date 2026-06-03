@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Configuration for texcut's system-wide text expander.
+
+  We listen to text-change events across every app (no packageNames filter)
+  and require the ability to read window content so we can inspect the focused
+  editable field and rewrite the typed shortcut.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeViewTextChanged|typeViewFocused"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagReportViewIds"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="30"
+    android:settingsActivity="com.texcut.app.MainActivity" />

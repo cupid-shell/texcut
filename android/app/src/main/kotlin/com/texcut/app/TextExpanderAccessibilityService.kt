@@ -116,19 +116,16 @@ class TextExpanderAccessibilityService : AccessibilityService() {
         }
 
         if (FillOverlay.canShow(this)) {
-            // Prompt for the fields in a floating window, then paste the result.
+            // Prompt for the fields in a floating window. Because that window
+            // takes focus, we wait for focus to return to the target field,
+            // then RE-DETECT the shortcut on the live node and paste — this
+            // avoids pasting into a stale/blurred node.
             val clip = readClipboard()
             FillOverlay(this).show(labels) { values ->
                 if (values == null) return@show
-                val lookup = store.loadSnippets().associate { it.shortcut to it.expansion }
-                val r = engine.renderText(
-                    result.rawExpansion, settings, Date(), clip, lookup, counter, values)
-                val target =
-                    rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: source
-                val caret = result.replaceStart + (r.cursorOffset ?: r.text.length)
-                val applied = pasteInto(
-                    target, result.replaceStart, result.replaceEnd, r.text, caret)
-                if (applied) recordSuccess(result, counter, settings)
+                main.postDelayed({
+                    applyFilledExpansion(snippets, settings, counter, clip, values, result, source)
+                }, 350)
             }
         } else {
             // Without overlay permission, paste with [Label] placeholders so the
@@ -137,6 +134,45 @@ class TextExpanderAccessibilityService : AccessibilityService() {
                 result.insertText, result.cursor)
             if (applied) recordSuccess(result, counter, settings)
         }
+    }
+
+    /**
+     * Re-acquires the focused editable field after the fill-in overlay closes
+     * and applies the expansion with the collected [values]. Re-detecting on
+     * the live node makes this robust to focus changes and any text shifts.
+     */
+    private fun applyFilledExpansion(
+        snippets: List<Snippet>,
+        settings: Settings,
+        counter: Int,
+        clip: String,
+        values: Map<String, String>,
+        original: ExpansionResult,
+        fallbackNode: AccessibilityNodeInfo
+    ) {
+        val node = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: fallbackNode.also { it.refresh() }
+        val text = node.text?.toString()
+        if (text != null) {
+            val cursorPos =
+                if (node.textSelectionEnd in 0..text.length) node.textSelectionEnd
+                else text.length
+            val r = engine.expand(text, cursorPos, snippets, settings, clip, Date(), counter, values)
+            if (r != null) {
+                val applied = pasteInto(node, r.replaceStart, r.replaceEnd, r.insertText, r.cursor) ||
+                    setTextWhole(node, r.text, r.cursor)
+                if (applied) recordSuccess(r, counter, settings)
+                return
+            }
+        }
+        // Fallback: the field text was unchanged, so reuse the original span.
+        val lookup = snippets.associate { it.shortcut to it.expansion }
+        val rr = engine.renderText(
+            original.rawExpansion, settings, Date(), clip, lookup, counter, values)
+        val caret = original.replaceStart + (rr.cursorOffset ?: rr.text.length)
+        val applied = pasteInto(
+            node, original.replaceStart, original.replaceEnd, rr.text, caret)
+        if (applied) recordSuccess(original, counter, settings)
     }
 
     private fun recordSuccess(result: ExpansionResult, counter: Int, settings: Settings) {

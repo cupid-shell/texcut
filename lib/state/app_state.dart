@@ -6,6 +6,7 @@ import '../models/expansion_settings.dart';
 import '../models/snippet.dart';
 import '../services/native_bridge.dart';
 import '../services/seed_data.dart';
+import '../services/snippet_merge.dart';
 import '../services/snippet_repository.dart';
 
 /// Central, observable application state. Owns the snippet list and settings,
@@ -266,6 +267,41 @@ class AppState extends ChangeNotifier {
     await updateSettings(_settings.copyWith(sortMode: mode));
   }
 
+  // ---- Bulk actions over a set of snippet ids ----
+
+  Future<void> deleteMany(Set<String> ids) async {
+    _snippets.removeWhere((s) => ids.contains(s.id));
+    await _persistSnippets();
+  }
+
+  Future<void> setEnabledMany(Set<String> ids, bool enabled) async {
+    for (var i = 0; i < _snippets.length; i++) {
+      if (ids.contains(_snippets[i].id)) {
+        _snippets[i] = _snippets[i].copyWith(enabled: enabled);
+      }
+    }
+    await _persistSnippets();
+  }
+
+  Future<void> setPinnedMany(Set<String> ids, bool pinned) async {
+    for (var i = 0; i < _snippets.length; i++) {
+      if (ids.contains(_snippets[i].id)) {
+        _snippets[i] = _snippets[i].copyWith(pinned: pinned);
+      }
+    }
+    await _persistSnippets();
+  }
+
+  Future<void> moveMany(Set<String> ids, String group) async {
+    final g = group.trim().isEmpty ? 'General' : group.trim();
+    for (var i = 0; i < _snippets.length; i++) {
+      if (ids.contains(_snippets[i].id)) {
+        _snippets[i] = _snippets[i].copyWith(group: g);
+      }
+    }
+    await _persistSnippets();
+  }
+
   Future<void> recordUsage(String id) async {
     final index = _snippets.indexWhere((s) => s.id == id);
     if (index < 0) return;
@@ -285,7 +321,13 @@ class AppState extends ChangeNotifier {
   /// Replaces all snippets/settings from synced data without re-triggering an
   /// upstream push (used when applying data pulled from Drive).
   Future<void> applySyncedData(String rawJson) async {
-    await importFromJson(rawJson, merge: true, silent: true);
+    final doc = jsonDecode(rawJson) as Map<String, dynamic>;
+    final incoming = (doc['snippets'] as List<dynamic>)
+        .map((e) => Snippet.fromJson(e as Map<String, dynamic>))
+        .toList();
+    // Newest-wins union so edits on either device survive.
+    _snippets = mergeSnippets(_snippets, incoming);
+    await _persistSnippets(silent: true);
   }
 
   /// Serialises the whole library to a JSON document for backup / sharing.

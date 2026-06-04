@@ -10,12 +10,16 @@ class SnippetTile extends StatelessWidget {
     required this.onTap,
     required this.onToggle,
     this.onLongPress,
+    this.selected = false,
+    this.selectionMode = false,
   });
 
   final Snippet snippet;
   final VoidCallback onTap;
   final ValueChanged<bool> onToggle;
   final VoidCallback? onLongPress;
+  final bool selected;
+  final bool selectionMode;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +30,7 @@ class SnippetTile extends StatelessWidget {
 
     return Card(
       elevation: 0,
-      color: scheme.surfaceContainerLow,
+      color: selected ? scheme.primaryContainer : scheme.surfaceContainerLow,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
       child: InkWell(
         onTap: onTap,
@@ -36,6 +40,16 @@ class SnippetTile extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
           child: Row(
             children: [
+              if (selectionMode)
+                Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Icon(
+                    selected
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    color: selected ? scheme.primary : scheme.outline,
+                  ),
+                ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

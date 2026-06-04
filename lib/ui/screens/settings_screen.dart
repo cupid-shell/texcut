@@ -7,6 +7,7 @@ import '../../services/drive_sync.dart';
 import '../../state/app_state.dart';
 import '../widgets/enable_guide_sheet.dart';
 import 'about_screen.dart';
+import 'excluded_apps_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -30,6 +31,28 @@ class SettingsScreen extends StatelessWidget {
             value: s.serviceEnabled,
             onChanged: (v) =>
                 state.updateSettings(s.copyWith(serviceEnabled: v)),
+          ),
+          SwitchListTile(
+            secondary: Icon(state.paused
+                ? Icons.pause_circle_rounded
+                : Icons.play_circle_rounded),
+            title: const Text('Pause expansion'),
+            subtitle: const Text(
+                'Temporarily stop expanding everywhere (also on the Quick '
+                'Settings tile)'),
+            value: state.paused,
+            onChanged: (v) => state.setPaused(v),
+          ),
+          ListTile(
+            leading: const Icon(Icons.block_rounded),
+            title: const Text('Excluded apps'),
+            subtitle: Text(state.excludedApps.isEmpty
+                ? 'Never expand in chosen apps'
+                : '${state.excludedApps.length} app(s) excluded'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ExcludedAppsScreen()),
+            ),
           ),
           ListTile(
             leading: Icon(

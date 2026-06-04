@@ -60,6 +60,52 @@ class SnippetStore(context: Context) {
         prefs.edit().putLong(KEY_COUNTER, value.toLong()).apply()
     }
 
+    /** Whether system-wide expansion is temporarily paused. */
+    fun isPaused(): Boolean = prefs.getBoolean(KEY_PAUSED, false)
+
+    fun setPaused(value: Boolean) {
+        prefs.edit().putBoolean(KEY_PAUSED, value).apply()
+    }
+
+    /** Package names the user has chosen to never expand in. */
+    fun excludedApps(): Set<String> {
+        val raw = prefs.getString(KEY_EXCLUDED, null) ?: return emptySet()
+        return try {
+            val array = JSONArray(raw)
+            (0 until array.length()).map { array.getString(it) }.toSet()
+        } catch (e: Exception) {
+            emptySet()
+        }
+    }
+
+    /**
+     * Remembers an app (package + label) the user has typed in, so the in-app
+     * exclusion screen can list real apps without needing the QUERY_ALL_PACKAGES
+     * permission. Only writes when the package is newly seen.
+     */
+    fun recordSeenApp(pkg: String, label: String) {
+        if (pkg.isEmpty() || pkg == "com.texcut.app") return
+        try {
+            val raw = prefs.getString(KEY_SEEN, "[]")
+            val array = JSONArray(raw)
+            for (i in 0 until array.length()) {
+                if (array.optJSONObject(i)?.optString("package") == pkg) return
+            }
+            array.put(JSONObject().put("package", pkg).put("label", label))
+            // Keep the list from growing unbounded.
+            val trimmed = if (array.length() > 60) {
+                JSONArray().apply {
+                    for (i in array.length() - 60 until array.length()) put(array.get(i))
+                }
+            } else {
+                array
+            }
+            prefs.edit().putString(KEY_SEEN, trimmed.toString()).apply()
+        } catch (e: Exception) {
+            // Best-effort.
+        }
+    }
+
     /**
      * Increments usageCount and sets lastUsedAt for the snippet with [shortcut],
      * rewriting the shared snippets JSON in place so the in-app list reflects
@@ -106,5 +152,8 @@ class SnippetStore(context: Context) {
         private const val KEY_SNIPPETS = "flutter.texcut.snippets"
         private const val KEY_SETTINGS = "flutter.texcut.settings"
         private const val KEY_COUNTER = "flutter.texcut.counter"
+        private const val KEY_PAUSED = "flutter.texcut.paused"
+        private const val KEY_EXCLUDED = "flutter.texcut.excludedApps"
+        private const val KEY_SEEN = "flutter.texcut.seenApps"
     }
 }

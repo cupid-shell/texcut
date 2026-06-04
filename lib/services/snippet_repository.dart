@@ -19,6 +19,9 @@ class SnippetRepository {
 
   static const String snippetsKey = 'texcut.snippets';
   static const String settingsKey = 'texcut.settings';
+  static const String pausedKey = 'texcut.paused';
+  static const String excludedAppsKey = 'texcut.excludedApps';
+  static const String seenAppsKey = 'texcut.seenApps';
 
   final SharedPreferences _prefs;
 
@@ -61,4 +64,52 @@ class SnippetRepository {
   }
 
   bool get isFirstRun => !_prefs.containsKey(snippetsKey);
+
+  /// Re-reads prefs from disk so values written natively (seen apps, pause via
+  /// the QS tile) are visible.
+  Future<void> reload() => _prefs.reload();
+
+  bool loadPaused() => _prefs.getBool(pausedKey) ?? false;
+
+  Future<void> savePaused(bool value) async {
+    await _prefs.setBool(pausedKey, value);
+  }
+
+  List<String> loadExcludedApps() {
+    final raw = _prefs.getString(excludedAppsKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return (jsonDecode(raw) as List<dynamic>).cast<String>();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveExcludedApps(List<String> packages) async {
+    await _prefs.setString(excludedAppsKey, jsonEncode(packages));
+  }
+
+  /// Apps the accessibility service has seen the user type in, as
+  /// `{package, label}` records. Written natively, read here.
+  List<SeenApp> loadSeenApps() {
+    final raw = _prefs.getString(seenAppsKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return (jsonDecode(raw) as List<dynamic>)
+          .map((e) => SeenApp(
+                packageName: (e as Map<String, dynamic>)['package'] as String,
+                label: e['label'] as String? ?? e['package'] as String,
+              ))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+}
+
+/// An app the user has typed in, surfaced for the exclusion picker.
+class SeenApp {
+  const SeenApp({required this.packageName, required this.label});
+  final String packageName;
+  final String label;
 }

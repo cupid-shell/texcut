@@ -28,8 +28,13 @@ class AppState extends ChangeNotifier {
   List<Snippet> _snippets = [];
   ExpansionSettings _settings = const ExpansionSettings();
   bool _serviceConnected = false;
+  bool _paused = false;
+  List<String> _excludedApps = [];
   String _query = '';
   String? _groupFilter;
+
+  bool get paused => _paused;
+  List<String> get excludedApps => List.unmodifiable(_excludedApps);
 
   List<Snippet> get snippets => List.unmodifiable(_snippets);
   ExpansionSettings get settings => _settings;
@@ -111,12 +116,44 @@ class AppState extends ChangeNotifier {
     } else {
       _snippets = _repo.loadSnippets();
     }
+    _paused = _repo.loadPaused();
+    _excludedApps = _repo.loadExcludedApps();
     await refreshServiceStatus();
     notifyListeners();
   }
 
   Future<void> refreshServiceStatus() async {
     _serviceConnected = await _bridge.isAccessibilityServiceEnabled();
+    // The Quick Settings tile may have toggled pause while backgrounded.
+    _paused = _repo.loadPaused();
+    notifyListeners();
+  }
+
+  Future<void> setPaused(bool value) async {
+    _paused = value;
+    await _repo.savePaused(value);
+    notifyListeners();
+  }
+
+  /// Reloads prefs from disk (to pick up natively-written values) and returns
+  /// the apps the service has seen the user type in.
+  Future<List<SeenApp>> refreshSeenApps() async {
+    await _repo.reload();
+    _excludedApps = _repo.loadExcludedApps();
+    _paused = _repo.loadPaused();
+    notifyListeners();
+    return _repo.loadSeenApps();
+  }
+
+  Future<void> setAppExcluded(String packageName, bool excluded) async {
+    final set = {..._excludedApps};
+    if (excluded) {
+      set.add(packageName);
+    } else {
+      set.remove(packageName);
+    }
+    _excludedApps = set.toList()..sort();
+    await _repo.saveExcludedApps(_excludedApps);
     notifyListeners();
   }
 

@@ -45,6 +45,21 @@ class TextExpanderAccessibilityService : AccessibilityService() {
     @Volatile
     private var selfEdit = false
 
+    /** Last package we recorded, to avoid resolving the app label every keystroke. */
+    private var lastSeenPkg: String? = null
+
+    private fun recordSeenApp(pkg: String) {
+        if (pkg.isEmpty() || pkg == lastSeenPkg) return
+        lastSeenPkg = pkg
+        val label = try {
+            val pm = packageManager
+            pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+        } catch (e: Exception) {
+            pkg
+        }
+        store.recordSeenApp(pkg, label)
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         if (event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) return
@@ -63,6 +78,13 @@ class TextExpanderAccessibilityService : AccessibilityService() {
 
         val source = event.source ?: return
         if (!source.isEditable) return
+
+        // Remember which app we're typing in (for the in-app exclusion picker),
+        // then honour the pause switch and per-app exclusions.
+        val pkg = event.packageName?.toString() ?: ""
+        recordSeenApp(pkg)
+        if (store.isPaused()) return
+        if (pkg.isNotEmpty() && store.excludedApps().contains(pkg)) return
 
         val text = source.text?.toString() ?: return
         val cursor =

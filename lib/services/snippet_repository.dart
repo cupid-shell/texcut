@@ -22,6 +22,7 @@ class SnippetRepository {
   static const String pausedKey = 'texcut.paused';
   static const String excludedAppsKey = 'texcut.excludedApps';
   static const String seenAppsKey = 'texcut.seenApps';
+  static const String onboardedKey = 'texcut.onboarded';
 
   final SharedPreferences _prefs;
 
@@ -68,6 +69,12 @@ class SnippetRepository {
   /// Re-reads prefs from disk so values written natively (seen apps, pause via
   /// the QS tile) are visible.
   Future<void> reload() => _prefs.reload();
+
+  bool loadOnboarded() => _prefs.getBool(onboardedKey) ?? false;
+
+  Future<void> saveOnboarded(bool value) async {
+    await _prefs.setBool(onboardedKey, value);
+  }
 
   bool loadPaused() => _prefs.getBool(pausedKey) ?? false;
 

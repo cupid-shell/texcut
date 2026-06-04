@@ -30,7 +30,10 @@ class AppState extends ChangeNotifier {
   bool _serviceConnected = false;
   bool _paused = false;
   bool _overlayGranted = false;
+  bool _onboarded = false;
   List<String> _excludedApps = [];
+
+  bool get needsOnboarding => !_onboarded;
   String _query = '';
   String? _groupFilter;
 
@@ -120,8 +123,37 @@ class AppState extends ChangeNotifier {
     }
     _paused = _repo.loadPaused();
     _excludedApps = _repo.loadExcludedApps();
+    _onboarded = _repo.loadOnboarded();
     await refreshServiceStatus();
     notifyListeners();
+  }
+
+  Future<void> markOnboarded() async {
+    _onboarded = true;
+    await _repo.saveOnboarded(true);
+    notifyListeners();
+  }
+
+  /// Adds [incoming] snippets, giving each a fresh id and a unique shortcut
+  /// (appending a number on clashes). Returns how many were added.
+  Future<int> addSnippets(List<Snippet> incoming) async {
+    for (final s in incoming) {
+      var shortcut = s.shortcut;
+      var n = 1;
+      while (_snippets.any((e) => e.shortcut == shortcut)) {
+        n++;
+        shortcut = '${s.shortcut}$n';
+      }
+      _snippets.add(Snippet(
+        id: Snippet.newId(),
+        shortcut: shortcut,
+        expansion: s.expansion,
+        label: s.label,
+        group: s.group,
+      ));
+    }
+    await _persistSnippets();
+    return incoming.length;
   }
 
   Future<void> refreshServiceStatus() async {

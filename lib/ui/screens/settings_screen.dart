@@ -8,6 +8,7 @@ import '../../state/app_state.dart';
 import '../widgets/enable_guide_sheet.dart';
 import 'about_screen.dart';
 import 'excluded_apps_screen.dart';
+import 'templates_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -151,6 +152,16 @@ class SettingsScreen extends StatelessWidget {
           ),
           _sectionHeader(context, 'Google Drive sync'),
           const _DriveSyncTiles(),
+          _sectionHeader(context, 'Snippets'),
+          ListTile(
+            leading: const Icon(Icons.collections_bookmark_rounded),
+            title: const Text('Snippet templates'),
+            subtitle: const Text('Add ready-made packs of snippets'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const TemplatesScreen()),
+            ),
+          ),
           _sectionHeader(context, 'Backup'),
           ListTile(
             leading: const Icon(Icons.upload_rounded),

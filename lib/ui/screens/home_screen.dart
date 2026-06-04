@@ -7,6 +7,7 @@ import '../../state/app_state.dart';
 import '../widgets/service_status_card.dart';
 import '../widgets/snippet_tile.dart';
 import 'edit_snippet_screen.dart';
+import 'onboarding_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -23,6 +24,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (context.read<AppState>().needsOnboarding) {
+        Navigator.of(context).push(MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const OnboardingScreen(),
+        ));
+      }
+    });
   }
 
   @override

@@ -46,6 +46,9 @@ class TextExpanderAccessibilityService : AccessibilityService() {
     @Volatile
     private var selfEdit = false
 
+    @Volatile
+    private var launcherOpen = false
+
     /** Last package we recorded, to avoid resolving the app label every keystroke. */
     private var lastSeenPkg: String? = null
     private var lastAppLabel: String = ""
@@ -96,6 +99,15 @@ class TextExpanderAccessibilityService : AccessibilityService() {
             } else {
                 text.length
             }
+
+        // Quick-search launcher: typing the trigger (e.g. ";;") opens a
+        // floating snippet search instead of expanding a shortcut.
+        if (settings.launcherEnabled && settings.launcherTrigger.isNotEmpty() &&
+            !launcherOpen && text.substring(0, cursor).endsWith(settings.launcherTrigger)
+        ) {
+            showLauncher(snippets, settings, source)
+            return
+        }
 
         val counter = store.getCounter()
         val result = engine.expand(
@@ -175,6 +187,69 @@ class TextExpanderAccessibilityService : AccessibilityService() {
         val applied = pasteInto(
             node, original.replaceStart, original.replaceEnd, rr.text, caret)
         if (applied) recordSuccess(original, counter, settings)
+    }
+
+    /** Opens the quick-search launcher; on choice, inserts over the trigger. */
+    private fun showLauncher(
+        snippets: List<Snippet>,
+        settings: Settings,
+        fallback: AccessibilityNodeInfo
+    ) {
+        if (!FillOverlay.canShow(this)) return
+        launcherOpen = true
+        LauncherOverlay(this).show(snippets) { chosen ->
+            launcherOpen = false
+            if (chosen == null) return@show
+            val labels = engine.inputLabels(chosen.expansion)
+            if (labels.isEmpty()) {
+                main.postDelayed({
+                    insertChosen(chosen, emptyMap(), settings, fallback)
+                }, 300)
+            } else {
+                FillOverlay(this).show(labels) { values ->
+                    if (values == null) return@show
+                    main.postDelayed({
+                        insertChosen(chosen, values, settings, fallback)
+                    }, 300)
+                }
+            }
+        }
+    }
+
+    /** Replaces the launcher trigger with [chosen]'s rendered expansion. */
+    private fun insertChosen(
+        chosen: Snippet,
+        values: Map<String, String>,
+        settings: Settings,
+        fallback: AccessibilityNodeInfo
+    ) {
+        val node = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: fallback.also { it.refresh() }
+        val text = node.text?.toString() ?: return
+        val caret = if (node.textSelectionEnd in 0..text.length)
+            node.textSelectionEnd else text.length
+        val trig = settings.launcherTrigger
+        // Replace the trigger if it's right before the caret; otherwise insert.
+        var start = caret - trig.length
+        var end = caret
+        if (start < 0 || text.substring(start.coerceAtLeast(0), end) != trig) {
+            start = caret
+            end = caret
+        }
+        val counter = store.getCounter()
+        val lookup = store.loadSnippets().associate { it.shortcut to it.expansion }
+        val r = engine.renderText(
+            chosen.expansion, settings, Date(), readClipboard(), lookup, counter, values)
+        val caretFinal = start + (r.cursorOffset ?: r.text.length)
+        val applied = pasteInto(node, start, end, r.text, caretFinal)
+        if (applied) {
+            store.bumpUsage(chosen.shortcut)
+            store.addHistory(chosen.shortcut, lastAppLabel)
+            if (chosen.expansion.contains("{counter}", ignoreCase = true)) {
+                store.setCounter(counter + 1)
+            }
+            if (settings.hapticFeedback) vibrate()
+        }
     }
 
     private fun recordSuccess(result: ExpansionResult, counter: Int, settings: Settings) {

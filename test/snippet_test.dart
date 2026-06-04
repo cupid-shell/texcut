@@ -41,12 +41,18 @@ void main() {
         triggerMode: TriggerMode.instant,
         caseSensitive: false,
         dateFormat: 'dd/MM/yyyy',
+        sortMode: SortMode.mostUsed,
+        launcherEnabled: false,
+        launcherTrigger: '::',
       );
       final restored = ExpansionSettings.fromJson(s.toJson());
       expect(restored.serviceEnabled, false);
       expect(restored.triggerMode, TriggerMode.instant);
       expect(restored.caseSensitive, false);
       expect(restored.dateFormat, 'dd/MM/yyyy');
+      expect(restored.sortMode, SortMode.mostUsed);
+      expect(restored.launcherEnabled, false);
+      expect(restored.launcherTrigger, '::');
     });
 
     test('defaults are sensible', () {

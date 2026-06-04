@@ -8,7 +8,8 @@ import org.json.JSONObject
 data class Snippet(
     val shortcut: String,
     val expansion: String,
-    val enabled: Boolean
+    val enabled: Boolean,
+    val label: String = ""
 )
 
 /** Trigger behaviour shared with the Flutter UI. */
@@ -19,7 +20,9 @@ data class Settings(
     val caseSensitive: Boolean = true,
     val hapticFeedback: Boolean = true,
     val dateFormat: String = "yyyy-MM-dd",
-    val timeFormat: String = "HH:mm"
+    val timeFormat: String = "HH:mm",
+    val launcherEnabled: Boolean = true,
+    val launcherTrigger: String = ";;"
 )
 
 /**
@@ -45,7 +48,8 @@ class SnippetStore(context: Context) {
                 Snippet(
                     shortcut = o.optString("shortcut", ""),
                     expansion = o.optString("expansion", ""),
-                    enabled = o.optBoolean("enabled", true)
+                    enabled = o.optBoolean("enabled", true),
+                    label = o.optString("label", "")
                 )
             }.filter { it.shortcut.isNotEmpty() }
         } catch (e: Exception) {
@@ -162,7 +166,9 @@ class SnippetStore(context: Context) {
                 caseSensitive = o.optBoolean("caseSensitive", true),
                 hapticFeedback = o.optBoolean("hapticFeedback", true),
                 dateFormat = o.optString("dateFormat", "yyyy-MM-dd"),
-                timeFormat = o.optString("timeFormat", "HH:mm")
+                timeFormat = o.optString("timeFormat", "HH:mm"),
+                launcherEnabled = o.optBoolean("launcherEnabled", true),
+                launcherTrigger = o.optString("launcherTrigger", ";;")
             )
         } catch (e: Exception) {
             Settings()

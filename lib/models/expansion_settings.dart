@@ -48,6 +48,8 @@ class ExpansionSettings {
     this.dateFormat = 'yyyy-MM-dd',
     this.timeFormat = 'HH:mm',
     this.sortMode = SortMode.alphabetical,
+    this.launcherEnabled = true,
+    this.launcherTrigger = ';;',
   });
 
   /// Master switch for system-wide expansion (independent of the OS toggle).
@@ -60,6 +62,10 @@ class ExpansionSettings {
   final String timeFormat;
   final SortMode sortMode;
 
+  /// Typing [launcherTrigger] opens a floating snippet search to pick & insert.
+  final bool launcherEnabled;
+  final String launcherTrigger;
+
   ExpansionSettings copyWith({
     bool? serviceEnabled,
     TriggerMode? triggerMode,
@@ -69,6 +75,8 @@ class ExpansionSettings {
     String? dateFormat,
     String? timeFormat,
     SortMode? sortMode,
+    bool? launcherEnabled,
+    String? launcherTrigger,
   }) {
     return ExpansionSettings(
       serviceEnabled: serviceEnabled ?? this.serviceEnabled,
@@ -79,6 +87,8 @@ class ExpansionSettings {
       dateFormat: dateFormat ?? this.dateFormat,
       timeFormat: timeFormat ?? this.timeFormat,
       sortMode: sortMode ?? this.sortMode,
+      launcherEnabled: launcherEnabled ?? this.launcherEnabled,
+      launcherTrigger: launcherTrigger ?? this.launcherTrigger,
     );
   }
 
@@ -91,6 +101,8 @@ class ExpansionSettings {
         'dateFormat': dateFormat,
         'timeFormat': timeFormat,
         'sortMode': sortMode.id,
+        'launcherEnabled': launcherEnabled,
+        'launcherTrigger': launcherTrigger,
       };
 
   factory ExpansionSettings.fromJson(Map<String, dynamic> json) =>
@@ -103,5 +115,7 @@ class ExpansionSettings {
         dateFormat: json['dateFormat'] as String? ?? 'yyyy-MM-dd',
         timeFormat: json['timeFormat'] as String? ?? 'HH:mm',
         sortMode: SortModeX.fromId(json['sortMode'] as String?),
+        launcherEnabled: json['launcherEnabled'] as bool? ?? true,
+        launcherTrigger: json['launcherTrigger'] as String? ?? ';;',
       );
 }

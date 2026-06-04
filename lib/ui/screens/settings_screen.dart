@@ -126,6 +126,30 @@ class SettingsScreen extends StatelessWidget {
             onChanged: (v) =>
                 state.updateSettings(s.copyWith(hapticFeedback: v)),
           ),
+          _sectionHeader(context, 'Quick search'),
+          SwitchListTile(
+            secondary: const Icon(Icons.search_rounded),
+            title: const Text('Search launcher'),
+            subtitle: Text('Type “${s.launcherTrigger}” in any field to search '
+                'snippets and pick one'),
+            value: s.launcherEnabled,
+            onChanged: (v) =>
+                state.updateSettings(s.copyWith(launcherEnabled: v)),
+          ),
+          ListTile(
+            enabled: s.launcherEnabled,
+            leading: const Icon(Icons.keyboard_command_key_rounded),
+            title: const Text('Launcher trigger'),
+            subtitle: Text(s.launcherTrigger),
+            onTap: () => _editFormat(
+              context,
+              title: 'Launcher trigger',
+              initial: s.launcherTrigger,
+              onSave: (v) =>
+                  state.updateSettings(s.copyWith(launcherTrigger: v)),
+              helperText: 'Characters that open the search, e.g. ;;',
+            ),
+          ),
           _sectionHeader(context, 'Formats'),
           ListTile(
             leading: const Icon(Icons.calendar_today_rounded),
@@ -242,6 +266,7 @@ class SettingsScreen extends StatelessWidget {
     required String title,
     required String initial,
     required ValueChanged<String> onSave,
+    String helperText = 'Uses intl date patterns, e.g. yyyy-MM-dd',
   }) async {
     final controller = TextEditingController(text: initial);
     final result = await showDialog<String>(
@@ -250,9 +275,7 @@ class SettingsScreen extends StatelessWidget {
         title: Text(title),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            helperText: 'Uses intl date patterns, e.g. yyyy-MM-dd',
-          ),
+          decoration: InputDecoration(helperText: helperText),
         ),
         actions: [
           TextButton(

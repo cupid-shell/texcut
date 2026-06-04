@@ -42,7 +42,8 @@ class AppState extends ChangeNotifier {
   int get totalCount => _snippets.length;
   int get enabledCount => _snippets.where((s) => s.enabled).length;
 
-  /// Snippets filtered by the current search query and group filter.
+  /// Snippets filtered by the current search query and group filter,
+  /// ordered with pinned items first then by the chosen sort mode.
   List<Snippet> get visibleSnippets {
     final q = _query.trim().toLowerCase();
     final list = _snippets.where((s) {
@@ -53,9 +54,30 @@ class AppState extends ChangeNotifier {
           s.label.toLowerCase().contains(q) ||
           s.group.toLowerCase().contains(q);
     }).toList();
-    list.sort((a, b) =>
-        a.displayTitle.toLowerCase().compareTo(b.displayTitle.toLowerCase()));
+    list.sort(_compare);
     return list;
+  }
+
+  int _compare(Snippet a, Snippet b) {
+    if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+    switch (_settings.sortMode) {
+      case SortMode.mostUsed:
+        final c = b.usageCount.compareTo(a.usageCount);
+        if (c != 0) return c;
+        break;
+      case SortMode.recentlyUsed:
+        final at = a.lastUsedAt, bt = b.lastUsedAt;
+        if (at == null && bt != null) return 1;
+        if (at != null && bt == null) return -1;
+        if (at != null && bt != null) {
+          final c = bt.compareTo(at);
+          if (c != 0) return c;
+        }
+        break;
+      case SortMode.alphabetical:
+        break;
+    }
+    return a.displayTitle.toLowerCase().compareTo(b.displayTitle.toLowerCase());
   }
 
   /// Visible snippets bucketed by group, with group names sorted A→Z.
@@ -136,6 +158,37 @@ class AppState extends ChangeNotifier {
     if (index < 0) return;
     _snippets[index] = _snippets[index].copyWith(enabled: enabled);
     await _persistSnippets();
+  }
+
+  Future<void> togglePin(String id) async {
+    final index = _snippets.indexWhere((s) => s.id == id);
+    if (index < 0) return;
+    _snippets[index] =
+        _snippets[index].copyWith(pinned: !_snippets[index].pinned);
+    await _persistSnippets();
+  }
+
+  /// Creates a copy of [snippet] with a fresh id and a unique shortcut.
+  Future<void> duplicate(Snippet snippet) async {
+    var newShortcut = '${snippet.shortcut}2';
+    var n = 2;
+    while (_snippets.any((s) => s.shortcut == newShortcut)) {
+      n++;
+      newShortcut = '${snippet.shortcut}$n';
+    }
+    _snippets.add(Snippet(
+      id: Snippet.newId(),
+      shortcut: newShortcut,
+      expansion: snippet.expansion,
+      label: snippet.label,
+      group: snippet.group,
+      enabled: snippet.enabled,
+    ));
+    await _persistSnippets();
+  }
+
+  Future<void> setSortMode(SortMode mode) async {
+    await updateSettings(_settings.copyWith(sortMode: mode));
   }
 
   Future<void> recordUsage(String id) async {

@@ -20,6 +20,22 @@ extension TriggerModeX on TriggerMode {
           orElse: () => TriggerMode.onDelimiter);
 }
 
+/// How the snippet list is ordered (pinned items always come first).
+enum SortMode { alphabetical, mostUsed, recentlyUsed }
+
+extension SortModeX on SortMode {
+  String get id => name;
+  String get label => switch (this) {
+        SortMode.alphabetical => 'Alphabetical',
+        SortMode.mostUsed => 'Most used',
+        SortMode.recentlyUsed => 'Recently used',
+      };
+
+  static SortMode fromId(String? id) =>
+      SortMode.values.firstWhere((m) => m.id == id,
+          orElse: () => SortMode.alphabetical);
+}
+
 /// User-tunable behaviour for the expander, shared between the in-app
 /// text fields and the system-wide accessibility service.
 class ExpansionSettings {
@@ -31,6 +47,7 @@ class ExpansionSettings {
     this.hapticFeedback = true,
     this.dateFormat = 'yyyy-MM-dd',
     this.timeFormat = 'HH:mm',
+    this.sortMode = SortMode.alphabetical,
   });
 
   /// Master switch for system-wide expansion (independent of the OS toggle).
@@ -41,6 +58,7 @@ class ExpansionSettings {
   final bool hapticFeedback;
   final String dateFormat;
   final String timeFormat;
+  final SortMode sortMode;
 
   ExpansionSettings copyWith({
     bool? serviceEnabled,
@@ -50,6 +68,7 @@ class ExpansionSettings {
     bool? hapticFeedback,
     String? dateFormat,
     String? timeFormat,
+    SortMode? sortMode,
   }) {
     return ExpansionSettings(
       serviceEnabled: serviceEnabled ?? this.serviceEnabled,
@@ -59,6 +78,7 @@ class ExpansionSettings {
       hapticFeedback: hapticFeedback ?? this.hapticFeedback,
       dateFormat: dateFormat ?? this.dateFormat,
       timeFormat: timeFormat ?? this.timeFormat,
+      sortMode: sortMode ?? this.sortMode,
     );
   }
 
@@ -70,6 +90,7 @@ class ExpansionSettings {
         'hapticFeedback': hapticFeedback,
         'dateFormat': dateFormat,
         'timeFormat': timeFormat,
+        'sortMode': sortMode.id,
       };
 
   factory ExpansionSettings.fromJson(Map<String, dynamic> json) =>
@@ -81,5 +102,6 @@ class ExpansionSettings {
         hapticFeedback: json['hapticFeedback'] as bool? ?? true,
         dateFormat: json['dateFormat'] as String? ?? 'yyyy-MM-dd',
         timeFormat: json['timeFormat'] as String? ?? 'HH:mm',
+        sortMode: SortModeX.fromId(json['sortMode'] as String?),
       );
 }

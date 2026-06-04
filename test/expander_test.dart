@@ -171,6 +171,73 @@ void main() {
       final r = expander.render('{mystery}', now: fixedNow);
       expect(r.text, '{mystery}');
     });
+
+    test('date math shifts days/months', () {
+      expect(expander.render('{date+1d}', now: fixedNow).text, '2026-06-04');
+      expect(expander.render('{date-2d}', now: fixedNow).text, '2026-06-01');
+      expect(expander.render('{date+1mo}', now: fixedNow).text, '2026-07-03');
+    });
+
+    test('time math shifts minutes/hours', () {
+      expect(expander.render('{time+30m}', now: fixedNow).text, '14:35');
+      expect(expander.render('{time+1h}', now: fixedNow).text, '15:05');
+    });
+
+    test('offset combines with a custom pattern', () {
+      expect(expander.render('{date+1d:yyyy-MM-dd}', now: fixedNow).text,
+          '2026-06-04');
+    });
+
+    test('counter token uses the provided value', () {
+      expect(expander.render('{counter}', now: fixedNow, counter: 7).text, '7');
+    });
+
+    test('nested snippet token expands another snippet', () {
+      final r = expander.render(
+        'Sign: {snippet:;sig}',
+        now: fixedNow,
+        snippets: {';sig': 'Best, A'},
+      );
+      expect(r.text, 'Sign: Best, A');
+    });
+
+    test('nested snippets do not recurse infinitely', () {
+      final r = expander.render(
+        '{snippet:;loop}',
+        now: fixedNow,
+        snippets: {';loop': 'x{snippet:;loop}'},
+      );
+      // Depth-limited: should terminate and contain some x's, not hang.
+      expect(r.text.contains('x'), isTrue);
+    });
+  });
+
+  group('tokens via expand', () {
+    const expander = Expander(ExpansionSettings(triggerMode: TriggerMode.instant));
+
+    test('nested snippet resolves through expand', () {
+      final result = expander.expand(
+        text: ';full',
+        cursor: 5,
+        snippets: [
+          snip(';sig', 'Best'),
+          snip(';full', 'Hi {snippet:;sig}'),
+        ],
+        now: fixedNow,
+      );
+      expect(result!.text, 'Hi Best');
+    });
+
+    test('counter flows through expand', () {
+      final result = expander.expand(
+        text: ';n',
+        cursor: 2,
+        snippets: [snip(';n', 'No {counter}')],
+        now: fixedNow,
+        counter: 3,
+      );
+      expect(result!.text, 'No 3');
+    });
   });
 
   test('cursor token positions caret after expansion', () {

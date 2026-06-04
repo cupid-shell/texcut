@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/expansion_settings.dart';
 import '../../models/snippet.dart';
 import '../../state/app_state.dart';
 import '../widgets/service_status_card.dart';
@@ -54,6 +55,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const Text('texcut'),
         actions: [
+          PopupMenuButton<SortMode>(
+            tooltip: 'Sort',
+            icon: const Icon(Icons.sort_rounded),
+            initialValue: state.settings.sortMode,
+            onSelected: state.setSortMode,
+            itemBuilder: (context) => [
+              for (final m in SortMode.values)
+                PopupMenuItem(value: m, child: Text(m.label)),
+            ],
+          ),
           IconButton(
             tooltip: 'Settings',
             icon: const Icon(Icons.settings_rounded),
@@ -118,6 +129,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   snippet: s,
                   onTap: () => _openEditor(s),
                   onToggle: (v) => state.toggleEnabled(s.id, v),
+                  onLongPress: () => _showActions(s),
                 ),
               );
             },
@@ -140,6 +152,54 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Icon(Icons.delete_rounded, color: scheme.onErrorContainer),
+    );
+  }
+
+  Future<void> _showActions(Snippet s) async {
+    final state = context.read<AppState>();
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(
+                  s.pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded),
+              title: Text(s.pinned ? 'Unpin' : 'Pin to top'),
+              onTap: () {
+                state.togglePin(s.id);
+                Navigator.pop(sheetContext);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_rounded),
+              title: const Text('Duplicate'),
+              onTap: () {
+                state.duplicate(s);
+                Navigator.pop(sheetContext);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_rounded),
+              title: const Text('Edit'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _openEditor(s);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_rounded),
+              title: const Text('Delete'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                if (await _confirmDelete(s)) state.delete(s.id);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 

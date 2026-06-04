@@ -53,6 +53,36 @@ class SnippetStore(context: Context) {
         }
     }
 
+    /** Shared expansion counter (also written by Flutter via shared_preferences). */
+    fun getCounter(): Int = prefs.getLong(KEY_COUNTER, 0L).toInt()
+
+    fun setCounter(value: Int) {
+        prefs.edit().putLong(KEY_COUNTER, value.toLong()).apply()
+    }
+
+    /**
+     * Increments usageCount and sets lastUsedAt for the snippet with [shortcut],
+     * rewriting the shared snippets JSON in place so the in-app list reflects
+     * usage from system-wide expansions.
+     */
+    fun bumpUsage(shortcut: String) {
+        val raw = prefs.getString(KEY_SNIPPETS, null) ?: return
+        try {
+            val array = JSONArray(raw)
+            for (i in 0 until array.length()) {
+                val o = array.optJSONObject(i) ?: continue
+                if (o.optString("shortcut") == shortcut) {
+                    o.put("usageCount", o.optInt("usageCount", 0) + 1)
+                    o.put("lastUsedAt", java.time.Instant.now().toString())
+                    break
+                }
+            }
+            prefs.edit().putString(KEY_SNIPPETS, array.toString()).apply()
+        } catch (e: Exception) {
+            // Usage tracking is best-effort; never disrupt an expansion.
+        }
+    }
+
     fun loadSettings(): Settings {
         val raw = prefs.getString(KEY_SETTINGS, null) ?: return Settings()
         return try {
@@ -75,5 +105,6 @@ class SnippetStore(context: Context) {
         private const val PREFS_NAME = "FlutterSharedPreferences"
         private const val KEY_SNIPPETS = "flutter.texcut.snippets"
         private const val KEY_SETTINGS = "flutter.texcut.settings"
+        private const val KEY_COUNTER = "flutter.texcut.counter"
     }
 }

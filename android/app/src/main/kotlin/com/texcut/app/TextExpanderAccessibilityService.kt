@@ -72,16 +72,22 @@ class TextExpanderAccessibilityService : AccessibilityService() {
                 text.length
             }
 
+        val counter = store.getCounter()
         val result = engine.expand(
             text = text,
             cursor = cursor,
             snippets = snippets,
             settings = settings,
-            clipboard = readClipboard()
+            clipboard = readClipboard(),
+            counter = counter
         ) ?: return
 
         val applied = pasteExpansion(source, result) || setTextExpansion(source, result)
-        if (applied && settings.hapticFeedback) vibrate()
+        if (applied) {
+            store.bumpUsage(result.shortcut)
+            if (result.usedCounter) store.setCounter(counter + 1)
+            if (settings.hapticFeedback) vibrate()
+        }
     }
 
     /**

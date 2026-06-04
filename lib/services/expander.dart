@@ -55,6 +55,7 @@ class Expander {
     required List<Snippet> snippets,
     DateTime? now,
     String clipboard = '',
+    int counter = 0,
   }) {
     if (cursor < 0 || cursor > text.length) return null;
 
@@ -96,6 +97,8 @@ class Expander {
         s.expansion,
         now: now ?? DateTime.now(),
         clipboard: clipboard,
+        snippets: {for (final e in snippets) e.shortcut: e.expansion},
+        counter: counter,
       );
 
       final newText =
@@ -124,6 +127,9 @@ class Expander {
     String body, {
     required DateTime now,
     String clipboard = '',
+    Map<String, String> snippets = const {},
+    int counter = 0,
+    int depth = 0,
   }) {
     final buffer = StringBuffer();
     int? cursorOffset;
@@ -148,7 +154,8 @@ class Expander {
         final end = body.indexOf('}', i + 1);
         if (end != -1) {
           final token = body.substring(i + 1, end).trim();
-          final replacement = _resolveToken(token, now, clipboard);
+          final replacement =
+              _resolveToken(token, now, clipboard, snippets, counter, depth);
           if (replacement.isCursor) {
             cursorOffset = buffer.length;
           } else if (replacement.handled) {
@@ -169,31 +176,90 @@ class Expander {
     return RenderedExpansion(text: buffer.toString(), cursorOffset: cursorOffset);
   }
 
-  _TokenResult _resolveToken(String token, DateTime now, String clipboard) {
+  _TokenResult _resolveToken(
+    String token,
+    DateTime now,
+    String clipboard,
+    Map<String, String> snippets,
+    int counter,
+    int depth,
+  ) {
     final lower = token.toLowerCase();
     if (lower == 'cursor') return const _TokenResult.cursor();
     if (lower == 'clipboard') return _TokenResult.value(clipboard);
-    if (lower == 'date') {
-      return _TokenResult.value(DateFormat(settings.dateFormat).format(now));
+    if (lower == 'counter') return _TokenResult.value(counter.toString());
+
+    // Nested snippet: {snippet:;sig} or {s:;sig}
+    if (lower.startsWith('snippet:') || lower.startsWith('s:')) {
+      final shortcut = token.substring(token.indexOf(':') + 1).trim();
+      final body = snippets[shortcut];
+      if (body == null || depth >= 5) return const _TokenResult.unknown();
+      final nested = render(body,
+          now: now,
+          clipboard: clipboard,
+          snippets: snippets,
+          counter: counter,
+          depth: depth + 1);
+      return _TokenResult.value(nested.text);
     }
-    if (lower == 'time') {
-      return _TokenResult.value(DateFormat(settings.timeFormat).format(now));
-    }
-    if (lower == 'datetime') {
-      return _TokenResult.value(
-        '${DateFormat(settings.dateFormat).format(now)} '
-        '${DateFormat(settings.timeFormat).format(now)}',
-      );
-    }
-    if (lower.startsWith('date:')) {
-      final pattern = token.substring(token.indexOf(':') + 1);
+
+    // Date/time with optional offset and pattern, e.g. {date}, {date:EEE},
+    // {date+1d}, {date-1w:EEE}, {time+30m}, {datetime+1d}.
+    final m = RegExp(
+      r'^(date|time|datetime)([+-]\d+(?:y|mo|w|d|h|m))?(?::(.*))?$',
+      caseSensitive: false,
+    ).firstMatch(token);
+    if (m != null) {
+      final name = m.group(1)!.toLowerCase();
+      final when = _shift(now, m.group(2));
+      final pattern = m.group(3);
       try {
-        return _TokenResult.value(DateFormat(pattern).format(now));
+        if (pattern != null && pattern.isNotEmpty) {
+          return _TokenResult.value(DateFormat(pattern).format(when));
+        }
+        switch (name) {
+          case 'date':
+            return _TokenResult.value(
+                DateFormat(settings.dateFormat).format(when));
+          case 'time':
+            return _TokenResult.value(
+                DateFormat(settings.timeFormat).format(when));
+          case 'datetime':
+            return _TokenResult.value(
+                '${DateFormat(settings.dateFormat).format(when)} '
+                '${DateFormat(settings.timeFormat).format(when)}');
+        }
       } catch (_) {
         return const _TokenResult.unknown();
       }
     }
     return const _TokenResult.unknown();
+  }
+
+  /// Applies an offset like "+1d", "-2w", "+3mo" to [base].
+  DateTime _shift(DateTime base, String? offset) {
+    if (offset == null || offset.isEmpty) return base;
+    final m = RegExp(r'^([+-])(\d+)(y|mo|w|d|h|m)$').firstMatch(offset);
+    if (m == null) return base;
+    final sign = m.group(1) == '-' ? -1 : 1;
+    final amount = sign * int.parse(m.group(2)!);
+    switch (m.group(3)!) {
+      case 'y':
+        return DateTime(base.year + amount, base.month, base.day, base.hour,
+            base.minute, base.second);
+      case 'mo':
+        return DateTime(base.year, base.month + amount, base.day, base.hour,
+            base.minute, base.second);
+      case 'w':
+        return base.add(Duration(days: 7 * amount));
+      case 'd':
+        return base.add(Duration(days: amount));
+      case 'h':
+        return base.add(Duration(hours: amount));
+      case 'm':
+        return base.add(Duration(minutes: amount));
+    }
+    return base;
   }
 }
 

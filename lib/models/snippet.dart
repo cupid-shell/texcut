@@ -10,9 +10,11 @@ class Snippet {
     this.label = '',
     this.group = 'General',
     this.enabled = true,
+    this.pinned = false,
     this.usageCount = 0,
     DateTime? createdAt,
     DateTime? updatedAt,
+    this.lastUsedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
@@ -22,9 +24,11 @@ class Snippet {
   final String label;
   final String group;
   final bool enabled;
+  final bool pinned;
   final int usageCount;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime? lastUsedAt;
 
   /// A human friendly title for lists: the label if present, else the shortcut.
   String get displayTitle => label.trim().isNotEmpty ? label.trim() : shortcut;
@@ -35,8 +39,10 @@ class Snippet {
     String? label,
     String? group,
     bool? enabled,
+    bool? pinned,
     int? usageCount,
     DateTime? updatedAt,
+    DateTime? lastUsedAt,
   }) {
     return Snippet(
       id: id,
@@ -45,9 +51,11 @@ class Snippet {
       label: label ?? this.label,
       group: group ?? this.group,
       enabled: enabled ?? this.enabled,
+      pinned: pinned ?? this.pinned,
       usageCount: usageCount ?? this.usageCount,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
+      lastUsedAt: lastUsedAt ?? this.lastUsedAt,
     );
   }
 
@@ -58,9 +66,11 @@ class Snippet {
         'label': label,
         'group': group,
         'enabled': enabled,
+        'pinned': pinned,
         'usageCount': usageCount,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
+        if (lastUsedAt != null) 'lastUsedAt': lastUsedAt!.toIso8601String(),
       };
 
   factory Snippet.fromJson(Map<String, dynamic> json) => Snippet(
@@ -70,9 +80,11 @@ class Snippet {
         label: json['label'] as String? ?? '',
         group: json['group'] as String? ?? 'General',
         enabled: json['enabled'] as bool? ?? true,
+        pinned: json['pinned'] as bool? ?? false,
         usageCount: (json['usageCount'] as num?)?.toInt() ?? 0,
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
         updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),
+        lastUsedAt: DateTime.tryParse(json['lastUsedAt'] as String? ?? ''),
       );
 
   /// Generates a reasonably unique id without pulling in an extra dependency.

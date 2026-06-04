@@ -1,6 +1,7 @@
 package com.texcut.app
 
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -20,6 +21,8 @@ data class ExpansionResult(
     val replaceStart: Int,
     val replaceEnd: Int,
     val insertText: String,
+    val shortcut: String,
+    val usedCounter: Boolean,
 )
 
 private data class Rendered(val text: String, val cursorOffset: Int?)
@@ -41,7 +44,8 @@ class ExpansionEngine {
         snippets: List<Snippet>,
         settings: Settings,
         clipboard: String = "",
-        now: Date = Date()
+        now: Date = Date(),
+        counter: Int = 0
     ): ExpansionResult? {
         if (cursor < 0 || cursor > text.length) return null
 
@@ -56,6 +60,7 @@ class ExpansionEngine {
             head = head.substring(0, head.length - 1)
         }
 
+        val lookup = snippets.associate { it.shortcut to it.expansion }
         val candidates = snippets
             .filter { it.enabled && it.shortcut.isNotEmpty() }
             .sortedByDescending { it.shortcut.length }
@@ -72,7 +77,7 @@ class ExpansionEngine {
                 if (isWordChar(before) && isWordChar(s.shortcut[0])) continue
             }
 
-            val rendered = render(s.expansion, settings, now, clipboard)
+            val rendered = render(s.expansion, settings, now, clipboard, lookup, counter, 0)
             val newText = head.substring(0, matchStart) +
                 rendered.text + trailing + text.substring(cursor)
             val offset = rendered.cursorOffset ?: rendered.text.length
@@ -85,6 +90,8 @@ class ExpansionEngine {
                 replaceStart = matchStart,
                 replaceEnd = replaceEnd,
                 insertText = rendered.text,
+                shortcut = s.shortcut,
+                usedCounter = s.expansion.contains("{counter}", ignoreCase = true),
             )
         }
         return null
@@ -97,7 +104,10 @@ class ExpansionEngine {
         body: String,
         settings: Settings,
         now: Date,
-        clipboard: String
+        clipboard: String,
+        snippets: Map<String, String>,
+        counter: Int,
+        depth: Int
     ): Rendered {
         val sb = StringBuilder()
         var cursorOffset: Int? = null
@@ -116,7 +126,8 @@ class ExpansionEngine {
                 val end = body.indexOf('}', i + 1)
                 if (end != -1) {
                     val token = body.substring(i + 1, end).trim()
-                    val resolved = resolveToken(token, settings, now, clipboard)
+                    val resolved =
+                        resolveToken(token, settings, now, clipboard, snippets, counter, depth)
                     when {
                         resolved.isCursor -> cursorOffset = sb.length
                         resolved.handled -> sb.append(resolved.value)
@@ -139,32 +150,72 @@ class ExpansionEngine {
         val isCursor: Boolean
     )
 
+    private val dateTokenRegex =
+        Regex("^(date|time|datetime)([+-]\\d+(?:y|mo|w|d|h|m))?(?::(.*))?$",
+            RegexOption.IGNORE_CASE)
+    private val offsetRegex = Regex("^([+-])(\\d+)(y|mo|w|d|h|m)$")
+
     private fun resolveToken(
         token: String,
         settings: Settings,
         now: Date,
-        clipboard: String
+        clipboard: String,
+        snippets: Map<String, String>,
+        counter: Int,
+        depth: Int
     ): TokenResult {
         val lower = token.lowercase()
-        return when {
-            lower == "cursor" -> TokenResult("", handled = true, isCursor = true)
-            lower == "clipboard" -> TokenResult(clipboard, handled = true, isCursor = false)
-            lower == "date" -> TokenResult(format(settings.dateFormat, now), true, false)
-            lower == "time" -> TokenResult(format(settings.timeFormat, now), true, false)
-            lower == "datetime" -> TokenResult(
-                format(settings.dateFormat, now) + " " + format(settings.timeFormat, now),
-                handled = true, isCursor = false
-            )
-            lower.startsWith("date:") -> {
-                val pattern = token.substring(token.indexOf(':') + 1)
-                try {
-                    TokenResult(format(pattern, now), handled = true, isCursor = false)
-                } catch (e: Exception) {
-                    TokenResult("", handled = false, isCursor = false)
-                }
+        if (lower == "cursor") return TokenResult("", handled = true, isCursor = true)
+        if (lower == "clipboard") return TokenResult(clipboard, handled = true, isCursor = false)
+        if (lower == "counter") return TokenResult(counter.toString(), handled = true, isCursor = false)
+
+        if (lower.startsWith("snippet:") || lower.startsWith("s:")) {
+            val shortcut = token.substring(token.indexOf(':') + 1).trim()
+            val nestedBody = snippets[shortcut]
+            if (nestedBody == null || depth >= 5) {
+                return TokenResult("", handled = false, isCursor = false)
             }
-            else -> TokenResult("", handled = false, isCursor = false)
+            val nested = render(nestedBody, settings, now, clipboard, snippets, counter, depth + 1)
+            return TokenResult(nested.text, handled = true, isCursor = false)
         }
+
+        val m = dateTokenRegex.find(token)
+        if (m != null) {
+            val name = m.groupValues[1].lowercase()
+            val when_ = shift(now, m.groupValues[2])
+            val pattern = m.groupValues[3]
+            try {
+                if (pattern.isNotEmpty()) {
+                    return TokenResult(format(pattern, when_), handled = true, isCursor = false)
+                }
+                val value = when (name) {
+                    "date" -> format(settings.dateFormat, when_)
+                    "time" -> format(settings.timeFormat, when_)
+                    else -> format(settings.dateFormat, when_) + " " + format(settings.timeFormat, when_)
+                }
+                return TokenResult(value, handled = true, isCursor = false)
+            } catch (e: Exception) {
+                return TokenResult("", handled = false, isCursor = false)
+            }
+        }
+        return TokenResult("", handled = false, isCursor = false)
+    }
+
+    private fun shift(base: Date, offset: String): Date {
+        if (offset.isEmpty()) return base
+        val m = offsetRegex.find(offset) ?: return base
+        val sign = if (m.groupValues[1] == "-") -1 else 1
+        val amount = sign * m.groupValues[2].toInt()
+        val cal = Calendar.getInstance().apply { time = base }
+        when (m.groupValues[3]) {
+            "y" -> cal.add(Calendar.YEAR, amount)
+            "mo" -> cal.add(Calendar.MONTH, amount)
+            "w" -> cal.add(Calendar.WEEK_OF_YEAR, amount)
+            "d" -> cal.add(Calendar.DAY_OF_MONTH, amount)
+            "h" -> cal.add(Calendar.HOUR_OF_DAY, amount)
+            "m" -> cal.add(Calendar.MINUTE, amount)
+        }
+        return cal.time
     }
 
     private fun format(pattern: String, date: Date): String =

@@ -84,10 +84,12 @@ class _EditSnippetScreenState extends State<EditSnippetScreen> {
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
     final expander = Expander(state.settings);
+    final snippetMap = {for (final s in state.snippets) s.shortcut: s.expansion};
     final rendered = expander.render(
       _expansion.text,
       now: DateTime.now(),
       clipboard: '«clipboard»',
+      snippets: snippetMap,
     );
     final existingGroups = state.groups;
 
@@ -304,7 +306,9 @@ class _TokenBar extends StatelessWidget {
     '{date}': 'Date',
     '{time}': 'Time',
     '{datetime}': 'Date & time',
+    '{date+1d}': 'Tomorrow',
     '{clipboard}': 'Clipboard',
+    '{counter}': 'Counter',
     '{cursor}': 'Caret',
   };
 

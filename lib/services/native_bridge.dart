@@ -71,6 +71,18 @@ class NativeBridge {
     }
   }
 
+  /// Returns text shared into texcut (via the share sheet or text-selection
+  /// menu) once, then clears it. Null when nothing was shared.
+  Future<String?> getSharedText() async {
+    try {
+      return await _channel.invokeMethod<String>('getSharedText');
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
   /// Tells the running service to reload snippets/settings from storage.
   Future<void> notifyDataChanged() async {
     try {

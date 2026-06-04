@@ -10,9 +10,12 @@ import '../widgets/fill_dialog.dart';
 /// Create or edit a single snippet, with a live expansion preview and a
 /// built-in "try it" field that runs the real [Expander].
 class EditSnippetScreen extends StatefulWidget {
-  const EditSnippetScreen({super.key, this.snippet});
+  const EditSnippetScreen({super.key, this.snippet, this.initialExpansion});
 
   final Snippet? snippet;
+
+  /// Pre-fills the expansion for a brand-new snippet (e.g. shared-in text).
+  final String? initialExpansion;
 
   @override
   State<EditSnippetScreen> createState() => _EditSnippetScreenState();
@@ -34,7 +37,8 @@ class _EditSnippetScreenState extends State<EditSnippetScreen> {
     super.initState();
     final s = widget.snippet;
     _shortcut = TextEditingController(text: s?.shortcut ?? '');
-    _expansion = TextEditingController(text: s?.expansion ?? '');
+    _expansion =
+        TextEditingController(text: s?.expansion ?? widget.initialExpansion ?? '');
     _label = TextEditingController(text: s?.label ?? '');
     _group = TextEditingController(text: s?.group ?? 'General');
     _tryIt = TextEditingController();

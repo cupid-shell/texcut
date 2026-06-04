@@ -48,6 +48,7 @@ class TextExpanderAccessibilityService : AccessibilityService() {
 
     /** Last package we recorded, to avoid resolving the app label every keystroke. */
     private var lastSeenPkg: String? = null
+    private var lastAppLabel: String = ""
 
     private fun recordSeenApp(pkg: String) {
         if (pkg.isEmpty() || pkg == lastSeenPkg) return
@@ -58,6 +59,7 @@ class TextExpanderAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             pkg
         }
+        lastAppLabel = label
         store.recordSeenApp(pkg, label)
     }
 
@@ -177,6 +179,7 @@ class TextExpanderAccessibilityService : AccessibilityService() {
 
     private fun recordSuccess(result: ExpansionResult, counter: Int, settings: Settings) {
         store.bumpUsage(result.shortcut)
+        store.addHistory(result.shortcut, lastAppLabel)
         if (result.usedCounter) store.setCounter(counter + 1)
         if (settings.hapticFeedback) vibrate()
     }

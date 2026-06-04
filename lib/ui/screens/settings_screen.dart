@@ -8,6 +8,7 @@ import '../../state/app_state.dart';
 import '../widgets/enable_guide_sheet.dart';
 import 'about_screen.dart';
 import 'excluded_apps_screen.dart';
+import 'history_screen.dart';
 import 'templates_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -160,6 +161,15 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const TemplatesScreen()),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.history_rounded),
+            title: const Text('Expansion history'),
+            subtitle: const Text('Recent expansions (shortcut, app, time)'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const HistoryScreen()),
             ),
           ),
           _sectionHeader(context, 'Backup'),

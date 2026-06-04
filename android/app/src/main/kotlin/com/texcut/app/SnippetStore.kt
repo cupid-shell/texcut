@@ -129,6 +129,28 @@ class SnippetStore(context: Context) {
         }
     }
 
+    /**
+     * Records that [shortcut] fired in [appLabel], newest first, capped at 50.
+     * Only the shortcut/app/time are stored — never the expanded text — so no
+     * sensitive content (fill-in values, clipboard) is logged.
+     */
+    fun addHistory(shortcut: String, appLabel: String) {
+        try {
+            val raw = prefs.getString(KEY_HISTORY, "[]")
+            val array = JSONArray(raw)
+            val entry = JSONObject()
+                .put("shortcut", shortcut)
+                .put("app", appLabel)
+                .put("at", java.time.Instant.now().toString())
+            val out = JSONArray()
+            out.put(entry)
+            for (i in 0 until minOf(array.length(), 49)) out.put(array.get(i))
+            prefs.edit().putString(KEY_HISTORY, out.toString()).apply()
+        } catch (e: Exception) {
+            // Best-effort.
+        }
+    }
+
     fun loadSettings(): Settings {
         val raw = prefs.getString(KEY_SETTINGS, null) ?: return Settings()
         return try {
@@ -155,5 +177,6 @@ class SnippetStore(context: Context) {
         private const val KEY_PAUSED = "flutter.texcut.paused"
         private const val KEY_EXCLUDED = "flutter.texcut.excludedApps"
         private const val KEY_SEEN = "flutter.texcut.seenApps"
+        private const val KEY_HISTORY = "flutter.texcut.history"
     }
 }

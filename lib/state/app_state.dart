@@ -168,6 +168,20 @@ class AppState extends ChangeNotifier {
   /// Opens the "Display over other apps" settings (for the fill-in prompt).
   Future<void> openOverlaySettings() => _bridge.openOverlaySettings();
 
+  /// Returns (once) any text shared into texcut from another app.
+  Future<String?> consumeSharedText() => _bridge.getSharedText();
+
+  /// Reloads prefs and returns the recent-expansion history (newest first).
+  Future<List<HistoryEntry>> loadHistory() async {
+    await _repo.reload();
+    return _repo.loadHistory();
+  }
+
+  Future<void> clearHistory() async {
+    await _repo.clearHistory();
+    notifyListeners();
+  }
+
   Future<void> setPaused(bool value) async {
     _paused = value;
     await _repo.savePaused(value);

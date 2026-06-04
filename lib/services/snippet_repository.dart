@@ -23,6 +23,7 @@ class SnippetRepository {
   static const String excludedAppsKey = 'texcut.excludedApps';
   static const String seenAppsKey = 'texcut.seenApps';
   static const String onboardedKey = 'texcut.onboarded';
+  static const String historyKey = 'texcut.history';
 
   final SharedPreferences _prefs;
 
@@ -96,6 +97,27 @@ class SnippetRepository {
     await _prefs.setString(excludedAppsKey, jsonEncode(packages));
   }
 
+  /// Recent expansions recorded by the service (shortcut/app/time only).
+  List<HistoryEntry> loadHistory() {
+    final raw = _prefs.getString(historyKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return (jsonDecode(raw) as List<dynamic>)
+          .map((e) => HistoryEntry(
+                shortcut: (e as Map<String, dynamic>)['shortcut'] as String? ?? '',
+                app: e['app'] as String? ?? '',
+                at: DateTime.tryParse(e['at'] as String? ?? ''),
+              ))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> clearHistory() async {
+    await _prefs.setString(historyKey, '[]');
+  }
+
   /// Apps the accessibility service has seen the user type in, as
   /// `{package, label}` records. Written natively, read here.
   List<SeenApp> loadSeenApps() {
@@ -119,4 +141,12 @@ class SeenApp {
   const SeenApp({required this.packageName, required this.label});
   final String packageName;
   final String label;
+}
+
+/// One recorded expansion (shortcut + app + time).
+class HistoryEntry {
+  const HistoryEntry({required this.shortcut, required this.app, this.at});
+  final String shortcut;
+  final String app;
+  final DateTime? at;
 }

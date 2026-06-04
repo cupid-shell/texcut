@@ -42,7 +42,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           builder: (_) => const OnboardingScreen(),
         ));
       }
+      _checkSharedText();
     });
+  }
+
+  Future<void> _checkSharedText() async {
+    final text = await context.read<AppState>().consumeSharedText();
+    if (!mounted || text == null || text.trim().isEmpty) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => EditSnippetScreen(initialExpansion: text),
+    ));
   }
 
   @override
@@ -56,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       context.read<AppState>().refreshServiceStatus();
+      _checkSharedText();
     }
   }
 

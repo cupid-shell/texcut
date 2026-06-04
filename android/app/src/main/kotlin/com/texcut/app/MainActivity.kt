@@ -2,6 +2,7 @@ package com.texcut.app
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -15,6 +16,32 @@ class MainActivity : FlutterActivity() {
 
     private val channelName = "com.texcut.app/accessibility"
 
+    /** Text shared into texcut (ACTION_SEND / PROCESS_TEXT), consumed once by Flutter. */
+    private var sharedText: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        captureSharedText(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        captureSharedText(intent)
+    }
+
+    private fun captureSharedText(intent: Intent?) {
+        when (intent?.action) {
+            Intent.ACTION_SEND ->
+                if (intent.type == "text/plain") {
+                    sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                }
+            Intent.ACTION_PROCESS_TEXT ->
+                sharedText = intent
+                    .getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -24,6 +51,11 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isServiceEnabled" -> result.success(isAccessibilityServiceEnabled())
+                "getSharedText" -> {
+                    val t = sharedText
+                    sharedText = null
+                    result.success(t)
+                }
                 "openAccessibilitySettings" -> {
                     val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

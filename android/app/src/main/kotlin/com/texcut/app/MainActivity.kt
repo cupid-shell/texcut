@@ -30,6 +30,16 @@ class MainActivity : FlutterActivity() {
                     startActivity(intent)
                     result.success(null)
                 }
+                "canDrawOverlays" -> result.success(Settings.canDrawOverlays(this))
+                "openOverlaySettings" -> {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.fromParts("package", packageName, null)
+                    )
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    result.success(null)
+                }
                 "openAppSettings" -> {
                     // Opens texcut's App info page. On Android 13+ this is where
                     // the "Allow restricted settings" menu item appears, which

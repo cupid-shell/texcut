@@ -29,11 +29,13 @@ class AppState extends ChangeNotifier {
   ExpansionSettings _settings = const ExpansionSettings();
   bool _serviceConnected = false;
   bool _paused = false;
+  bool _overlayGranted = false;
   List<String> _excludedApps = [];
   String _query = '';
   String? _groupFilter;
 
   bool get paused => _paused;
+  bool get overlayGranted => _overlayGranted;
   List<String> get excludedApps => List.unmodifiable(_excludedApps);
 
   List<Snippet> get snippets => List.unmodifiable(_snippets);
@@ -124,10 +126,14 @@ class AppState extends ChangeNotifier {
 
   Future<void> refreshServiceStatus() async {
     _serviceConnected = await _bridge.isAccessibilityServiceEnabled();
+    _overlayGranted = await _bridge.canDrawOverlays();
     // The Quick Settings tile may have toggled pause while backgrounded.
     _paused = _repo.loadPaused();
     notifyListeners();
   }
+
+  /// Opens the "Display over other apps" settings (for the fill-in prompt).
+  Future<void> openOverlaySettings() => _bridge.openOverlaySettings();
 
   Future<void> setPaused(bool value) async {
     _paused = value;

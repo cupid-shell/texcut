@@ -55,6 +55,17 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           ListTile(
+            leading: Icon(state.overlayGranted
+                ? Icons.check_circle_rounded
+                : Icons.layers_rounded),
+            title: const Text('Fill-in prompt'),
+            subtitle: Text(state.overlayGranted
+                ? 'Allowed to show {input} prompts over other apps'
+                : 'Allow drawing over apps to prompt for {input} fields'),
+            trailing: const Icon(Icons.open_in_new_rounded),
+            onTap: state.openOverlaySettings,
+          ),
+          ListTile(
             leading: Icon(
               state.serviceConnected
                   ? Icons.check_circle_rounded

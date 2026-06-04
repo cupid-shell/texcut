@@ -228,6 +228,34 @@ void main() {
       expect(result!.text, 'Hi Best');
     });
 
+    test('input labels are extracted in order without duplicates', () {
+      const e = Expander(ExpansionSettings());
+      expect(
+        e.inputLabels('Hi {input:Name}, your code is {input:Code} {input:Name}'),
+        ['Name', 'Code'],
+      );
+    });
+
+    test('input token uses provided value, else a bracketed placeholder', () {
+      const e = Expander(ExpansionSettings());
+      expect(e.render('Hi {input:Name}', now: fixedNow).text, 'Hi [Name]');
+      expect(
+        e.render('Hi {input:Name}', now: fixedNow, inputs: {'Name': 'Avi'}).text,
+        'Hi Avi',
+      );
+    });
+
+    test('input values flow through expand', () {
+      final result = expander.expand(
+        text: ';greet',
+        cursor: 6,
+        snippets: [snip(';greet', 'Dear {input:Name},')],
+        now: fixedNow,
+        inputs: {'Name': 'Sam'},
+      );
+      expect(result!.text, 'Dear Sam,');
+    });
+
     test('counter flows through expand', () {
       final result = expander.expand(
         text: ';n',

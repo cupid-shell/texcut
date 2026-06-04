@@ -49,6 +49,28 @@ class NativeBridge {
     }
   }
 
+  /// Whether texcut can draw over other apps (needed for the fill-in prompt).
+  Future<bool> canDrawOverlays() async {
+    try {
+      return await _channel.invokeMethod<bool>('canDrawOverlays') ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// Opens the "Display over other apps" settings page for texcut.
+  Future<void> openOverlaySettings() async {
+    try {
+      await _channel.invokeMethod('openOverlaySettings');
+    } on MissingPluginException {
+      // no-op off Android
+    } on PlatformException {
+      // no-op
+    }
+  }
+
   /// Tells the running service to reload snippets/settings from storage.
   Future<void> notifyDataChanged() async {
     try {

@@ -56,6 +56,7 @@ class Expander {
     DateTime? now,
     String clipboard = '',
     int counter = 0,
+    Map<String, String> inputs = const {},
   }) {
     if (cursor < 0 || cursor > text.length) return null;
 
@@ -98,6 +99,7 @@ class Expander {
         now: now ?? DateTime.now(),
         clipboard: clipboard,
         snippets: {for (final e in snippets) e.shortcut: e.expansion},
+        inputs: inputs,
         counter: counter,
       );
 
@@ -128,6 +130,7 @@ class Expander {
     required DateTime now,
     String clipboard = '',
     Map<String, String> snippets = const {},
+    Map<String, String> inputs = const {},
     int counter = 0,
     int depth = 0,
   }) {
@@ -155,7 +158,7 @@ class Expander {
         if (end != -1) {
           final token = body.substring(i + 1, end).trim();
           final replacement =
-              _resolveToken(token, now, clipboard, snippets, counter, depth);
+              _resolveToken(token, now, clipboard, snippets, inputs, counter, depth);
           if (replacement.isCursor) {
             cursorOffset = buffer.length;
           } else if (replacement.handled) {
@@ -176,11 +179,24 @@ class Expander {
     return RenderedExpansion(text: buffer.toString(), cursorOffset: cursorOffset);
   }
 
+  /// Returns the ordered, de-duplicated list of {input:Label} field labels in
+  /// [body]. Used to prompt the user before expanding.
+  List<String> inputLabels(String body) {
+    final labels = <String>[];
+    for (final m
+        in RegExp(r'\{input:([^}]*)\}', caseSensitive: false).allMatches(body)) {
+      final label = m.group(1)!.trim();
+      if (label.isNotEmpty && !labels.contains(label)) labels.add(label);
+    }
+    return labels;
+  }
+
   _TokenResult _resolveToken(
     String token,
     DateTime now,
     String clipboard,
     Map<String, String> snippets,
+    Map<String, String> inputs,
     int counter,
     int depth,
   ) {
@@ -188,6 +204,13 @@ class Expander {
     if (lower == 'cursor') return const _TokenResult.cursor();
     if (lower == 'clipboard') return _TokenResult.value(clipboard);
     if (lower == 'counter') return _TokenResult.value(counter.toString());
+
+    // Fill-in field: {input:Label}. Uses the provided value, or shows the
+    // label in brackets when previewing (no value supplied yet).
+    if (lower.startsWith('input:')) {
+      final label = token.substring(token.indexOf(':') + 1).trim();
+      return _TokenResult.value(inputs[label] ?? '[$label]');
+    }
 
     // Nested snippet: {snippet:;sig} or {s:;sig}
     if (lower.startsWith('snippet:') || lower.startsWith('s:')) {
@@ -198,6 +221,7 @@ class Expander {
           now: now,
           clipboard: clipboard,
           snippets: snippets,
+          inputs: inputs,
           counter: counter,
           depth: depth + 1);
       return _TokenResult.value(nested.text);

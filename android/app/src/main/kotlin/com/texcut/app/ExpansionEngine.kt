@@ -23,7 +23,10 @@ data class ExpansionResult(
     val insertText: String,
     val shortcut: String,
     val usedCounter: Boolean,
+    val rawExpansion: String,
 )
+
+data class RenderedText(val text: String, val cursorOffset: Int?)
 
 private data class Rendered(val text: String, val cursorOffset: Int?)
 
@@ -45,7 +48,8 @@ class ExpansionEngine {
         settings: Settings,
         clipboard: String = "",
         now: Date = Date(),
-        counter: Int = 0
+        counter: Int = 0,
+        inputs: Map<String, String> = emptyMap()
     ): ExpansionResult? {
         if (cursor < 0 || cursor > text.length) return null
 
@@ -77,7 +81,7 @@ class ExpansionEngine {
                 if (isWordChar(before) && isWordChar(s.shortcut[0])) continue
             }
 
-            val rendered = render(s.expansion, settings, now, clipboard, lookup, counter, 0)
+            val rendered = render(s.expansion, settings, now, clipboard, lookup, inputs, counter, 0)
             val newText = head.substring(0, matchStart) +
                 rendered.text + trailing + text.substring(cursor)
             val offset = rendered.cursorOffset ?: rendered.text.length
@@ -92,6 +96,7 @@ class ExpansionEngine {
                 insertText = rendered.text,
                 shortcut = s.shortcut,
                 usedCounter = s.expansion.contains("{counter}", ignoreCase = true),
+                rawExpansion = s.expansion,
             )
         }
         return null
@@ -100,12 +105,37 @@ class ExpansionEngine {
     private fun isWordChar(c: Char): Boolean =
         c in '0'..'9' || c in 'A'..'Z' || c in 'a'..'z'
 
+    /** Ordered, de-duplicated {input:Label} field labels found in [body]. */
+    fun inputLabels(body: String): List<String> {
+        val labels = mutableListOf<String>()
+        Regex("\\{input:([^}]*)\\}", RegexOption.IGNORE_CASE).findAll(body).forEach {
+            val label = it.groupValues[1].trim()
+            if (label.isNotEmpty() && !labels.contains(label)) labels.add(label)
+        }
+        return labels
+    }
+
+    /** Public render used to re-render a body once fill-in values are known. */
+    fun renderText(
+        body: String,
+        settings: Settings,
+        now: Date,
+        clipboard: String,
+        snippets: Map<String, String>,
+        counter: Int,
+        inputs: Map<String, String>
+    ): RenderedText {
+        val r = render(body, settings, now, clipboard, snippets, inputs, counter, 0)
+        return RenderedText(r.text, r.cursorOffset)
+    }
+
     private fun render(
         body: String,
         settings: Settings,
         now: Date,
         clipboard: String,
         snippets: Map<String, String>,
+        inputs: Map<String, String>,
         counter: Int,
         depth: Int
     ): Rendered {
@@ -127,7 +157,7 @@ class ExpansionEngine {
                 if (end != -1) {
                     val token = body.substring(i + 1, end).trim()
                     val resolved =
-                        resolveToken(token, settings, now, clipboard, snippets, counter, depth)
+                        resolveToken(token, settings, now, clipboard, snippets, inputs, counter, depth)
                     when {
                         resolved.isCursor -> cursorOffset = sb.length
                         resolved.handled -> sb.append(resolved.value)
@@ -161,6 +191,7 @@ class ExpansionEngine {
         now: Date,
         clipboard: String,
         snippets: Map<String, String>,
+        inputs: Map<String, String>,
         counter: Int,
         depth: Int
     ): TokenResult {
@@ -169,13 +200,18 @@ class ExpansionEngine {
         if (lower == "clipboard") return TokenResult(clipboard, handled = true, isCursor = false)
         if (lower == "counter") return TokenResult(counter.toString(), handled = true, isCursor = false)
 
+        if (lower.startsWith("input:")) {
+            val label = token.substring(token.indexOf(':') + 1).trim()
+            return TokenResult(inputs[label] ?: "[$label]", handled = true, isCursor = false)
+        }
+
         if (lower.startsWith("snippet:") || lower.startsWith("s:")) {
             val shortcut = token.substring(token.indexOf(':') + 1).trim()
             val nestedBody = snippets[shortcut]
             if (nestedBody == null || depth >= 5) {
                 return TokenResult("", handled = false, isCursor = false)
             }
-            val nested = render(nestedBody, settings, now, clipboard, snippets, counter, depth + 1)
+            val nested = render(nestedBody, settings, now, clipboard, snippets, inputs, counter, depth + 1)
             return TokenResult(nested.text, handled = true, isCursor = false)
         }
 

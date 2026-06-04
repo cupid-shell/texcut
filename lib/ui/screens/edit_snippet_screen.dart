@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/snippet.dart';
 import '../../services/expander.dart';
 import '../../state/app_state.dart';
+import '../widgets/fill_dialog.dart';
 
 /// Create or edit a single snippet, with a live expansion preview and a
 /// built-in "try it" field that runs the real [Expander].
@@ -208,20 +209,37 @@ class _EditSnippetScreenState extends State<EditSnippetScreen> {
                 decoration: const InputDecoration(
                   hintText: 'Type your shortcut here to test the expansion…',
                 ),
-                onChanged: (value) {
+                onChanged: (value) async {
+                  final previewSnippet = Snippet(
+                    id: 'preview',
+                    shortcut: _shortcut.text.trim(),
+                    expansion: _expansion.text,
+                  );
+                  final cursor = _tryIt.selection.baseOffset >= 0
+                      ? _tryIt.selection.baseOffset
+                      : value.length;
+                  // Detect a match first (inputs blank).
+                  final hit = expander.expand(
+                    text: value,
+                    cursor: cursor,
+                    snippets: [previewSnippet],
+                    clipboard: '«clipboard»',
+                  );
+                  if (hit == null) return;
+
+                  var inputs = <String, String>{};
+                  final labels = expander.inputLabels(_expansion.text);
+                  if (labels.isNotEmpty) {
+                    final values = await showFillDialog(context, labels);
+                    if (values == null) return; // cancelled
+                    inputs = values;
+                  }
                   final result = expander.expand(
                     text: value,
-                    cursor: _tryIt.selection.baseOffset >= 0
-                        ? _tryIt.selection.baseOffset
-                        : value.length,
-                    snippets: [
-                      Snippet(
-                        id: 'preview',
-                        shortcut: _shortcut.text.trim(),
-                        expansion: _expansion.text,
-                      ),
-                    ],
+                    cursor: cursor,
+                    snippets: [previewSnippet],
                     clipboard: '«clipboard»',
+                    inputs: inputs,
                   );
                   if (result != null) {
                     _tryIt.value = TextEditingValue(
@@ -309,6 +327,7 @@ class _TokenBar extends StatelessWidget {
     '{date+1d}': 'Tomorrow',
     '{clipboard}': 'Clipboard',
     '{counter}': 'Counter',
+    '{input:Name}': 'Fill-in',
     '{cursor}': 'Caret',
   };
 

@@ -104,53 +104,76 @@ class TextExpanderAccessibilityService : AccessibilityService() {
             counter = counter
         ) ?: return
 
-        val applied = pasteExpansion(source, result) || setTextExpansion(source, result)
-        if (applied) {
-            store.bumpUsage(result.shortcut)
-            if (result.usedCounter) store.setCounter(counter + 1)
-            if (settings.hapticFeedback) vibrate()
+        val labels = engine.inputLabels(result.rawExpansion)
+        if (labels.isEmpty()) {
+            // No fill-in fields: paste the rendered text directly.
+            val applied = pasteInto(source, result.replaceStart, result.replaceEnd,
+                result.insertText, result.cursor) ||
+                setTextWhole(source, result.text, result.cursor)
+            if (applied) recordSuccess(result, counter, settings)
+            return
+        }
+
+        if (FillOverlay.canShow(this)) {
+            // Prompt for the fields in a floating window, then paste the result.
+            val clip = readClipboard()
+            FillOverlay(this).show(labels) { values ->
+                if (values == null) return@show
+                val lookup = store.loadSnippets().associate { it.shortcut to it.expansion }
+                val r = engine.renderText(
+                    result.rawExpansion, settings, Date(), clip, lookup, counter, values)
+                val target =
+                    rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: source
+                val caret = result.replaceStart + (r.cursorOffset ?: r.text.length)
+                val applied = pasteInto(
+                    target, result.replaceStart, result.replaceEnd, r.text, caret)
+                if (applied) recordSuccess(result, counter, settings)
+            }
+        } else {
+            // Without overlay permission, paste with [Label] placeholders so the
+            // user can fill them in by hand.
+            val applied = pasteInto(source, result.replaceStart, result.replaceEnd,
+                result.insertText, result.cursor)
+            if (applied) recordSuccess(result, counter, settings)
         }
     }
 
+    private fun recordSuccess(result: ExpansionResult, counter: Int, settings: Settings) {
+        store.bumpUsage(result.shortcut)
+        if (result.usedCounter) store.setCounter(counter + 1)
+        if (settings.hapticFeedback) vibrate()
+    }
+
     /**
-     * Selects the shortcut span and pastes the expansion over it. Returns true
-     * when the paste action was accepted by the node.
+     * Selects [start, end] in [node] and pastes [insertText] over it, then
+     * positions the caret at [caret]. Paste travels through the app's normal
+     * input pipeline so the change is committed.
      */
-    private fun pasteExpansion(
+    private fun pasteInto(
         node: AccessibilityNodeInfo,
-        result: ExpansionResult
+        start: Int,
+        end: Int,
+        insertText: String,
+        caret: Int
     ): Boolean {
         val clipboard =
             getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                 ?: return false
 
-        // Select just the shortcut text.
         val select = Bundle().apply {
-            putInt(
-                AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT,
-                result.replaceStart
-            )
-            putInt(
-                AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT,
-                result.replaceEnd
-            )
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, start)
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, end)
         }
-        if (!node.performAction(
-                AccessibilityNodeInfo.ACTION_SET_SELECTION, select)
-        ) {
+        if (!node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, select)) {
             return false
         }
 
-        // Stash whatever the user had on the clipboard so we can restore it.
         val previousClip: ClipData? = try {
             clipboard.primaryClip
         } catch (e: Exception) {
             null
         }
-
-        clipboard.setPrimaryClip(
-            ClipData.newPlainText("texcut", result.insertText)
-        )
+        clipboard.setPrimaryClip(ClipData.newPlainText("texcut", insertText))
 
         selfEdit = true
         val pasted = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
@@ -160,22 +183,13 @@ class TextExpanderAccessibilityService : AccessibilityService() {
             return false
         }
 
-        // Place the caret (honours the {cursor} token) once paste settles, then
-        // put the user's clipboard back.
         main.postDelayed({
             try {
-                val caret = Bundle().apply {
-                    putInt(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT,
-                        result.cursor
-                    )
-                    putInt(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT,
-                        result.cursor
-                    )
+                val c = Bundle().apply {
+                    putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, caret)
+                    putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, caret)
                 }
-                node.performAction(
-                    AccessibilityNodeInfo.ACTION_SET_SELECTION, caret)
+                node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, c)
             } catch (e: Exception) {
                 // Caret repositioning is best-effort.
             }
@@ -186,15 +200,14 @@ class TextExpanderAccessibilityService : AccessibilityService() {
     }
 
     /** Whole-field replacement fallback for nodes that reject paste. */
-    private fun setTextExpansion(
+    private fun setTextWhole(
         node: AccessibilityNodeInfo,
-        result: ExpansionResult
+        fullText: String,
+        caret: Int
     ): Boolean {
         val setText = Bundle().apply {
             putCharSequence(
-                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
-                result.text
-            )
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, fullText)
         }
         selfEdit = true
         val ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setText)
@@ -202,17 +215,11 @@ class TextExpanderAccessibilityService : AccessibilityService() {
             selfEdit = false
             return false
         }
-        val caret = Bundle().apply {
-            putInt(
-                AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT,
-                result.cursor
-            )
-            putInt(
-                AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT,
-                result.cursor
-            )
+        val c = Bundle().apply {
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, caret)
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, caret)
         }
-        node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, caret)
+        node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, c)
         return true
     }
 

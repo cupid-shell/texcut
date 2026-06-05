@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import 'services/drive_sync.dart';
 import 'services/snippet_repository.dart';
 import 'state/app_state.dart';
-import 'ui/screens/home_screen.dart';
+import 'ui/screens/splash_screen.dart';
 import 'ui/theme.dart';
 
 Future<void> main() async {
@@ -41,7 +41,7 @@ class TexcutApp extends StatelessWidget {
       theme: TexcutTheme.light(),
       darkTheme: TexcutTheme.dark(),
       themeMode: ThemeMode.system,
-      home: const HomeScreen(),
+      home: const SplashScreen(),
     );
   }
 }

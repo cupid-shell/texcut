@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash background; matches the top of the in-app splash gradient. -->
+    <color name="brand_splash">#4A6CF7</color>
+</resources>

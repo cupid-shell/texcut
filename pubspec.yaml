@@ -1,7 +1,7 @@
 name: texcut
 description: texcut — a fast, ad-free, fully-unlocked text expander with system-wide expansion on Android.
 publish_to: "none"
-version: 1.8.0+13
+version: 1.9.0+14
 
 environment:
   sdk: ">=3.3.0 <4.0.0"

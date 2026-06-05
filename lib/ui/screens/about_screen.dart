@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/app_state.dart';
@@ -30,8 +31,24 @@ class AboutScreen extends StatelessWidget {
                 style: Theme.of(context).textTheme.headlineSmall),
           ),
           Center(
-            child: Text('Version 1.0.0',
-                style: Theme.of(context).textTheme.bodySmall),
+            child: FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (context, snapshot) {
+                final v = snapshot.data?.version ?? '';
+                final b = snapshot.data?.buildNumber ?? '';
+                return Text(
+                  v.isEmpty ? 'Version —' : 'Version $v${b.isEmpty ? '' : ' ($b)'}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 4),
+          Center(
+            child: Text('Made by Avishek Adhikari',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    )),
           ),
           const SizedBox(height: 24),
           Card(

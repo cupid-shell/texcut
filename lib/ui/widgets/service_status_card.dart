@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../state/app_state.dart';
 import 'enable_guide_sheet.dart';
+import 'texcut_mark.dart';
 
 /// Banner that surfaces whether system-wide expansion is active and, when it
 /// isn't, opens a guided sheet to turn it on (handles the Android 13+
@@ -52,14 +53,14 @@ class ServiceStatusCard extends StatelessWidget {
                     color: fg.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    !connected
-                        ? Icons.bolt_rounded
-                        : paused
-                            ? Icons.pause_circle_rounded
-                            : Icons.verified_rounded,
-                    color: fg,
-                  ),
+                  child: !connected
+                      ? TexcutMark(size: 26, color: fg)
+                      : Icon(
+                          paused
+                              ? Icons.pause_circle_rounded
+                              : Icons.verified_rounded,
+                          color: fg,
+                        ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(

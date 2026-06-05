@@ -6,6 +6,7 @@ import '../../models/snippet.dart';
 import '../../state/app_state.dart';
 import '../widgets/service_status_card.dart';
 import '../widgets/snippet_tile.dart';
+import '../widgets/texcut_mark.dart';
 import 'edit_snippet_screen.dart';
 import 'onboarding_screen.dart';
 import 'settings_screen.dart';
@@ -479,11 +480,16 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              hasFilter ? Icons.search_off_rounded : Icons.bolt_rounded,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            hasFilter
+                ? Icon(
+                    Icons.search_off_rounded,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.primary,
+                  )
+                : TexcutMark(
+                    size: 72,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
             const SizedBox(height: 16),
             Text(
               hasFilter ? 'No matches' : 'No snippets yet',

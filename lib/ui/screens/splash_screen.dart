@@ -1,7 +1,6 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
+import '../widgets/texcut_mark.dart';
 import 'home_screen.dart';
 
 /// An animated splash: the texcut mark (a chevron expanding into lines of
@@ -89,7 +88,8 @@ class _SplashScreenState extends State<SplashScreen>
                           border: Border.all(
                               color: Colors.white.withValues(alpha: 0.18)),
                         ),
-                        child: CustomPaint(painter: _MarkPainter(bars)),
+                        child: CustomPaint(
+                            painter: TexcutMarkPainter(bars, Colors.white)),
                       ),
                     ),
                   ),
@@ -129,50 +129,4 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
   }
-}
-
-/// Paints the texcut mark within its box, with the text lines "expanding"
-/// according to [bars] (0..1).
-class _MarkPainter extends CustomPainter {
-  _MarkPainter(this.bars);
-  final double bars;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.width / 108;
-    double f(double v) => v * scale;
-    final p = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    // Chevron.
-    p.strokeWidth = f(8.5);
-    final chevron = Path()
-      ..moveTo(f(31), f(39))
-      ..lineTo(f(46), f(54))
-      ..lineTo(f(31), f(69));
-    canvas.drawPath(chevron, p);
-
-    // Expanding text lines (staggered).
-    p.strokeWidth = f(7);
-    const lines = [
-      [55.0, 43.0, 74.0],
-      [55.0, 54.0, 82.0],
-      [55.0, 65.0, 69.0],
-    ];
-    const starts = [0.0, 0.18, 0.36];
-    for (var i = 0; i < lines.length; i++) {
-      final t = ((bars - starts[i]) / 0.55).clamp(0.0, 1.0);
-      final e = Curves.easeOutCubic.transform(t);
-      if (e <= 0) continue;
-      final x0 = lines[i][0], y = lines[i][1], x1 = lines[i][2];
-      final cur = x0 + (x1 - x0) * e;
-      canvas.drawLine(Offset(f(x0), f(y)), Offset(f(math.max(cur, x0 + 0.1)), f(y)), p);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_MarkPainter old) => old.bars != bars;
 }

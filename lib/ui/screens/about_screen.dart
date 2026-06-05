@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/app_state.dart';
+import '../widgets/texcut_mark.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -20,8 +21,7 @@ class AboutScreen extends StatelessWidget {
             child: CircleAvatar(
               radius: 40,
               backgroundColor: scheme.primaryContainer,
-              foregroundColor: scheme.onPrimaryContainer,
-              child: const Icon(Icons.bolt_rounded, size: 44),
+              child: TexcutMark(size: 52, color: scheme.onPrimaryContainer),
             ),
           ),
           const SizedBox(height: 16),

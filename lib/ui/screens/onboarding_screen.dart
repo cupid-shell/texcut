@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../state/app_state.dart';
 import '../widgets/enable_guide_sheet.dart';
+import '../widgets/texcut_mark.dart';
 import 'templates_screen.dart';
 
 /// A short first-run walkthrough: what texcut does, enabling the service,
@@ -58,8 +59,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 controller: _controller,
                 onPageChanged: (p) => setState(() => _page = p),
                 children: [
-                  const _Page(
-                    icon: Icons.bolt_rounded,
+                  _Page(
+                    glyph: TexcutMark(
+                        size: 56,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer),
                     title: 'Welcome to texcut',
                     body: 'Create short triggers like ;br or ;email and texcut '
                         'types the full text for you — in this app and across '
@@ -152,13 +155,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
 class _Page extends StatelessWidget {
   const _Page({
-    required this.icon,
+    this.icon,
+    this.glyph,
     required this.title,
     required this.body,
     this.action,
   });
 
-  final IconData icon;
+  final IconData? icon;
+  final Widget? glyph;
   final String title;
   final String body;
   final Widget? action;
@@ -175,7 +180,7 @@ class _Page extends StatelessWidget {
             radius: 44,
             backgroundColor: theme.colorScheme.primaryContainer,
             foregroundColor: theme.colorScheme.onPrimaryContainer,
-            child: Icon(icon, size: 44),
+            child: glyph ?? Icon(icon, size: 44),
           ),
           const SizedBox(height: 28),
           Text(title, style: theme.textTheme.headlineSmall,

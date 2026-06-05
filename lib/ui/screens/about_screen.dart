@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../state/app_state.dart';
 import '../widgets/texcut_mark.dart';
+
+const _repoUrl = 'https://github.com/cupid-shell/texcut';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -84,6 +87,22 @@ class AboutScreen extends StatelessWidget {
             leading: const Icon(Icons.library_books_rounded),
             title: const Text('Snippets stored'),
             trailing: Text('$count'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.code_rounded),
+            title: const Text('View on GitHub'),
+            subtitle: const Text('cupid-shell/texcut'),
+            trailing: const Icon(Icons.open_in_new_rounded),
+            onTap: () async {
+              final uri = Uri.parse(_repoUrl);
+              if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Could not open the link')),
+                  );
+                }
+              }
+            },
           ),
         ],
       ),

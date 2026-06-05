@@ -25,6 +25,18 @@ class LauncherOverlay(private val context: Context) {
         context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var root: View? = null
 
+    /** Current system clipboard, read while this (focusable) overlay has focus. */
+    private var clipboardText: String = ""
+
+    private fun readClipboard(): String = try {
+        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE)
+            as android.content.ClipboardManager
+        cm.primaryClip?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)?.coerceToText(context)?.toString()?.trim() ?: ""
+    } catch (e: Exception) {
+        ""
+    }
+
     fun show(
         snippets: List<Snippet>,
         clips: List<String>,
@@ -64,6 +76,16 @@ class LauncherOverlay(private val context: Context) {
             list.removeAllViews()
             val q = query.trim().lowercase()
             var shown = 0
+            // Live clipboard (readable because this overlay holds focus).
+            if (clipboardText.isNotEmpty() &&
+                (q.isEmpty() || clipboardText.lowercase().contains(q))
+            ) {
+                list.addView(row("📋  Paste clipboard",
+                    clipboardText.replace("\n", " ↵ ").take(60)) {
+                    onResult(null, clipboardText)
+                })
+                shown++
+            }
             for (s in snippets) {
                 if (!s.enabled) continue
                 if (q.isNotEmpty() && !(s.shortcut.lowercase().contains(q) ||
@@ -161,6 +183,13 @@ class LauncherOverlay(private val context: Context) {
         try {
             windowManager.addView(container, params)
             search.requestFocus()
+            // Once the window has focus, the clipboard becomes readable; pick it
+            // up and surface a "Paste clipboard" row.
+            container.postDelayed({
+                if (root == null) return@postDelayed
+                clipboardText = readClipboard()
+                if (clipboardText.isNotEmpty()) rebuild(search.text?.toString() ?: "")
+            }, 200)
         } catch (e: Exception) {
             root = null
             onResult(null, null)

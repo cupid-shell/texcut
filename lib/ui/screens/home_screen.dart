@@ -346,8 +346,8 @@ class _StatsBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Row(
         children: [
-          Icon(Icons.bolt_rounded,
-              size: 18, color: theme.colorScheme.primary),
+          TexcutMark(
+              size: 18, compact: true, color: theme.colorScheme.primary),
           const SizedBox(width: 6),
           Text(
             '${state.totalCount} snippets',

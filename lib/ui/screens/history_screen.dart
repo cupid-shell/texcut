@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../services/snippet_repository.dart';
 import '../../state/app_state.dart';
+import '../widgets/texcut_mark.dart';
 
 /// Shows recent expansions (shortcut + app + time). For privacy, the expanded
 /// text itself is never logged.
@@ -82,7 +83,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
             itemBuilder: (context, i) {
               final e = items[i];
               return ListTile(
-                leading: const Icon(Icons.bolt_rounded),
+                leading: TexcutMark(
+                    size: 24,
+                    compact: true,
+                    color: Theme.of(context).colorScheme.primary),
                 title: Text(e.shortcut,
                     style: const TextStyle(
                         fontFamily: 'monospace', fontWeight: FontWeight.w600)),

@@ -96,7 +96,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           _sectionHeader(context, 'Triggering'),
           ListTile(
-            leading: const Icon(Icons.bolt_rounded),
+            leading: const Icon(Icons.speed_rounded),
             title: const Text('Trigger mode'),
             subtitle: Text(s.triggerMode.label),
             onTap: () => _pickTriggerMode(context, state),

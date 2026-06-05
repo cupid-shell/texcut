@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../models/expansion_settings.dart';
 import '../models/snippet.dart';
@@ -33,8 +34,10 @@ class AppState extends ChangeNotifier {
   bool _overlayGranted = false;
   bool _onboarded = false;
   List<String> _excludedApps = [];
+  List<ClipEntry> _clips = [];
 
   bool get needsOnboarding => !_onboarded;
+  List<ClipEntry> get clips => List.unmodifiable(_clips);
   String _query = '';
   String? _groupFilter;
 
@@ -125,7 +128,47 @@ class AppState extends ChangeNotifier {
     _paused = _repo.loadPaused();
     _excludedApps = _repo.loadExcludedApps();
     _onboarded = _repo.loadOnboarded();
+    _clips = _repo.loadClips();
     await refreshServiceStatus();
+    notifyListeners();
+  }
+
+  // ---- Clipboard manager ----
+
+  /// Saves [text] as a clip (newest first, de-duplicated, capped at 50).
+  Future<bool> addClip(String text) async {
+    final t = text.trim();
+    if (t.isEmpty) return false;
+    _clips.removeWhere((c) => c.text == t);
+    _clips.insert(0, ClipEntry(text: t, at: DateTime.now()));
+    if (_clips.length > 50) _clips = _clips.sublist(0, 50);
+    await _repo.saveClips(_clips);
+    await _bridge.notifyDataChanged();
+    notifyListeners();
+    return true;
+  }
+
+  /// Reads the current system clipboard (allowed while the app is foreground)
+  /// and saves it as a clip. Returns the saved text, or null if empty.
+  Future<String?> saveCurrentClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim() ?? '';
+    if (text.isEmpty) return null;
+    await addClip(text);
+    return text;
+  }
+
+  Future<void> deleteClip(ClipEntry clip) async {
+    _clips.remove(clip);
+    await _repo.saveClips(_clips);
+    await _bridge.notifyDataChanged();
+    notifyListeners();
+  }
+
+  Future<void> clearClips() async {
+    _clips = [];
+    await _repo.saveClips(_clips);
+    await _bridge.notifyDataChanged();
     notifyListeners();
   }
 

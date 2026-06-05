@@ -7,6 +7,7 @@ import '../../state/app_state.dart';
 import '../widgets/service_status_card.dart';
 import '../widgets/snippet_tile.dart';
 import '../widgets/texcut_mark.dart';
+import 'clips_screen.dart';
 import 'edit_snippet_screen.dart';
 import 'onboarding_screen.dart';
 import 'settings_screen.dart';
@@ -50,9 +51,47 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _checkSharedText() async {
     final text = await context.read<AppState>().consumeSharedText();
     if (!mounted || text == null || text.trim().isEmpty) return;
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => EditSnippetScreen(initialExpansion: text),
-    ));
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text(
+                text.length > 80 ? '${text.substring(0, 80)}…' : text,
+                style: Theme.of(context).textTheme.bodyMedium,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_rounded),
+              title: const Text('New snippet from this'),
+              onTap: () => Navigator.pop(sheetContext, 'snippet'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.content_paste_rounded),
+              title: const Text('Save as clip'),
+              onTap: () => Navigator.pop(sheetContext, 'clip'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 'snippet') {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => EditSnippetScreen(initialExpansion: text),
+      ));
+    } else if (choice == 'clip') {
+      await context.read<AppState>().addClip(text);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Saved clip')));
+    }
   }
 
   @override
@@ -125,6 +164,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             for (final m in SortMode.values)
               PopupMenuItem(value: m, child: Text(m.label)),
           ],
+        ),
+        IconButton(
+          tooltip: 'Clips',
+          icon: const Icon(Icons.content_paste_rounded),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ClipsScreen()),
+          ),
         ),
         IconButton(
           tooltip: 'Settings',

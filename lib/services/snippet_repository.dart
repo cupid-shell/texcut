@@ -24,6 +24,7 @@ class SnippetRepository {
   static const String seenAppsKey = 'texcut.seenApps';
   static const String onboardedKey = 'texcut.onboarded';
   static const String historyKey = 'texcut.history';
+  static const String clipsKey = 'texcut.clips';
 
   final SharedPreferences _prefs;
 
@@ -118,6 +119,30 @@ class SnippetRepository {
     await _prefs.setString(historyKey, '[]');
   }
 
+  /// Saved clipboard entries (newest first), shared with the native launcher.
+  List<ClipEntry> loadClips() {
+    final raw = _prefs.getString(clipsKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return (jsonDecode(raw) as List<dynamic>)
+          .map((e) => ClipEntry(
+                text: (e as Map<String, dynamic>)['text'] as String? ?? '',
+                at: DateTime.tryParse(e['at'] as String? ?? ''),
+              ))
+          .where((c) => c.text.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveClips(List<ClipEntry> clips) async {
+    final raw = jsonEncode(clips
+        .map((c) => {'text': c.text, 'at': (c.at ?? DateTime.now()).toIso8601String()})
+        .toList());
+    await _prefs.setString(clipsKey, raw);
+  }
+
   /// Apps the accessibility service has seen the user type in, as
   /// `{package, label}` records. Written natively, read here.
   List<SeenApp> loadSeenApps() {
@@ -148,5 +173,12 @@ class HistoryEntry {
   const HistoryEntry({required this.shortcut, required this.app, this.at});
   final String shortcut;
   final String app;
+  final DateTime? at;
+}
+
+/// A saved clipboard entry.
+class ClipEntry {
+  const ClipEntry({required this.text, this.at});
+  final String text;
   final DateTime? at;
 }

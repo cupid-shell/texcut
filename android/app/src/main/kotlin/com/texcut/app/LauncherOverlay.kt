@@ -25,15 +25,18 @@ class LauncherOverlay(private val context: Context) {
         context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var root: View? = null
 
-    fun show(snippets: List<Snippet>, onResult: (Snippet?) -> Unit) {
+    fun show(
+        snippets: List<Snippet>,
+        clips: List<String>,
+        onResult: (Snippet?, String?) -> Unit
+    ) {
         if (root != null) return
         val density = context.resources.displayMetrics.density
         fun dp(v: Int) = (v * density).toInt()
 
         val list = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
-        fun rowFor(s: Snippet): View {
-            val title = if (s.label.isNotBlank()) s.label else s.shortcut
+        fun row(title: String, subtitle: String, onClick: () -> Unit): View {
             return LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(6), dp(10), dp(6), dp(10))
@@ -42,16 +45,17 @@ class LauncherOverlay(private val context: Context) {
                     text = title
                     setTextColor(Color.WHITE)
                     textSize = 15f
+                    maxLines = 1
                 })
                 addView(TextView(context).apply {
-                    text = "${s.shortcut}   ·   ${s.expansion.replace("\n", " ↵ ")}"
+                    text = subtitle
                     setTextColor(Color.parseColor("#9C97AE"))
                     textSize = 12f
                     maxLines = 1
                 })
                 setOnClickListener {
                     dismiss()
-                    onResult(s)
+                    onClick()
                 }
             }
         }
@@ -59,25 +63,38 @@ class LauncherOverlay(private val context: Context) {
         fun rebuild(query: String) {
             list.removeAllViews()
             val q = query.trim().lowercase()
-            val matches = snippets.filter {
-                it.enabled && (q.isEmpty() ||
-                    it.shortcut.lowercase().contains(q) ||
-                    it.label.lowercase().contains(q) ||
-                    it.expansion.lowercase().contains(q))
-            }.take(50)
-            if (matches.isEmpty()) {
+            var shown = 0
+            for (s in snippets) {
+                if (!s.enabled) continue
+                if (q.isNotEmpty() && !(s.shortcut.lowercase().contains(q) ||
+                        s.label.lowercase().contains(q) ||
+                        s.expansion.lowercase().contains(q))) continue
+                val title = if (s.label.isNotBlank()) s.label else s.shortcut
+                list.addView(row(title,
+                    "${s.shortcut}   ·   ${s.expansion.replace("\n", " ↵ ")}") {
+                    onResult(s, null)
+                })
+                if (++shown >= 50) break
+            }
+            for (c in clips) {
+                if (shown >= 60) break
+                if (q.isNotEmpty() && !c.lowercase().contains(q)) continue
+                list.addView(row("📋  ${c.replace("\n", " ↵ ").take(60)}", "clip") {
+                    onResult(null, c)
+                })
+                shown++
+            }
+            if (shown == 0) {
                 list.addView(TextView(context).apply {
-                    text = "No matching snippets"
+                    text = "No matches"
                     setTextColor(Color.parseColor("#9C97AE"))
                     setPadding(dp(6), dp(12), dp(6), dp(12))
                 })
-            } else {
-                for (s in matches) list.addView(rowFor(s))
             }
         }
 
         val search = EditText(context).apply {
-            hint = "Search snippets"
+            hint = "Search snippets & clips"
             setTextColor(Color.WHITE)
             setHintTextColor(Color.parseColor("#7C7790"))
             inputType = InputType.TYPE_CLASS_TEXT
@@ -117,7 +134,7 @@ class LauncherOverlay(private val context: Context) {
                 textSize = 14f
                 gravity = Gravity.END
                 setPadding(0, dp(10), dp(6), 0)
-                setOnClickListener { dismiss(); onResult(null) }
+                setOnClickListener { dismiss(); onResult(null, null) }
             })
         }
 
@@ -146,7 +163,7 @@ class LauncherOverlay(private val context: Context) {
             search.requestFocus()
         } catch (e: Exception) {
             root = null
-            onResult(null)
+            onResult(null, null)
         }
     }
 

@@ -197,8 +197,12 @@ class TextExpanderAccessibilityService : AccessibilityService() {
     ) {
         if (!FillOverlay.canShow(this)) return
         launcherOpen = true
-        LauncherOverlay(this).show(snippets) { chosen ->
+        LauncherOverlay(this).show(snippets, store.loadClips()) { chosen, clip ->
             launcherOpen = false
+            if (clip != null) {
+                main.postDelayed({ insertLiteral(clip, settings, fallback) }, 300)
+                return@show
+            }
             if (chosen == null) return@show
             val labels = engine.inputLabels(chosen.expansion)
             if (labels.isEmpty()) {
@@ -213,6 +217,30 @@ class TextExpanderAccessibilityService : AccessibilityService() {
                     }, 300)
                 }
             }
+        }
+    }
+
+    /** Replaces the launcher trigger with a clip's text, inserted literally. */
+    private fun insertLiteral(
+        text: String,
+        settings: Settings,
+        fallback: AccessibilityNodeInfo
+    ) {
+        val node = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: fallback.also { it.refresh() }
+        val current = node.text?.toString() ?: return
+        val caret = if (node.textSelectionEnd in 0..current.length)
+            node.textSelectionEnd else current.length
+        val trig = settings.launcherTrigger
+        var start = caret - trig.length
+        var end = caret
+        if (start < 0 || current.substring(start.coerceAtLeast(0), end) != trig) {
+            start = caret
+            end = caret
+        }
+        if (pasteInto(node, start, end, text, start + text.length)) {
+            store.addHistory("clip", lastAppLabel)
+            if (settings.hapticFeedback) vibrate()
         }
     }
 

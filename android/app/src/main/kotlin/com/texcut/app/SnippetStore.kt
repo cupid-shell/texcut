@@ -155,6 +155,19 @@ class SnippetStore(context: Context) {
         }
     }
 
+    /** Saved clipboard entries (text only), newest first. */
+    fun loadClips(): List<String> {
+        val raw = prefs.getString(KEY_CLIPS, null) ?: return emptyList()
+        return try {
+            val array = JSONArray(raw)
+            (0 until array.length()).mapNotNull { i ->
+                array.optJSONObject(i)?.optString("text", "")
+            }.filter { it.isNotEmpty() }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     fun loadSettings(): Settings {
         val raw = prefs.getString(KEY_SETTINGS, null) ?: return Settings()
         return try {
@@ -184,5 +197,6 @@ class SnippetStore(context: Context) {
         private const val KEY_EXCLUDED = "flutter.texcut.excludedApps"
         private const val KEY_SEEN = "flutter.texcut.seenApps"
         private const val KEY_HISTORY = "flutter.texcut.history"
+        private const val KEY_CLIPS = "flutter.texcut.clips"
     }
 }

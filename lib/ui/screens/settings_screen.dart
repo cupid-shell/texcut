@@ -7,6 +7,7 @@ import '../../services/drive_sync.dart';
 import '../../state/app_state.dart';
 import '../widgets/enable_guide_sheet.dart';
 import 'about_screen.dart';
+import 'clips_screen.dart';
 import 'excluded_apps_screen.dart';
 import 'history_screen.dart';
 import 'templates_screen.dart';
@@ -185,6 +186,15 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const TemplatesScreen()),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.content_paste_rounded),
+            title: const Text('Clips'),
+            subtitle: const Text('Saved clipboard items you can paste via “;;”'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ClipsScreen()),
             ),
           ),
           ListTile(

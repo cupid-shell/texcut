@@ -260,9 +260,9 @@ class _EditSnippetScreenState extends State<EditSnippetScreen> {
                   if (hit == null) return;
 
                   var inputs = <String, String>{};
-                  final labels = expander.inputLabels(_expansion.text);
-                  if (labels.isNotEmpty) {
-                    final values = await showFillDialog(context, labels);
+                  final fields = expander.fillFields(_expansion.text);
+                  if (fields.isNotEmpty) {
+                    final values = await showFillDialog(context, fields);
                     if (values == null) return; // cancelled
                     inputs = values;
                   }
@@ -360,6 +360,7 @@ class _TokenBar extends StatelessWidget {
     '{clipboard}': 'Clipboard',
     '{counter}': 'Counter',
     '{input:Name}': 'Fill-in',
+    '{choice:Option 1|Option 2}': 'Choice',
     '{cursor}': 'Caret',
   };
 

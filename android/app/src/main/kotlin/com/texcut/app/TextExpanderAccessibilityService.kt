@@ -130,8 +130,8 @@ class TextExpanderAccessibilityService : AccessibilityService() {
             counter = counter
         ) ?: return
 
-        val labels = engine.inputLabels(result.rawExpansion)
-        if (labels.isEmpty()) {
+        val fields = engine.fillFields(result.rawExpansion)
+        if (fields.isEmpty()) {
             // No fill-in fields: paste the rendered text directly.
             val pasted = pasteInto(source, result.replaceStart, result.replaceEnd,
                 result.insertText, result.cursor)
@@ -149,7 +149,7 @@ class TextExpanderAccessibilityService : AccessibilityService() {
             // then RE-DETECT the shortcut on the live node and paste — this
             // avoids pasting into a stale/blurred node.
             val clip = readClipboard()
-            FillOverlay(this).show(labels) { values ->
+            FillOverlay(this).show(fields) { values ->
                 if (values == null) return@show
                 main.postDelayed({
                     applyFilledExpansion(snippets, settings, counter, clip, values, result, source)
@@ -222,13 +222,13 @@ class TextExpanderAccessibilityService : AccessibilityService() {
                 return@show
             }
             if (chosen == null) return@show
-            val labels = engine.inputLabels(chosen.expansion)
-            if (labels.isEmpty()) {
+            val fields = engine.fillFields(chosen.expansion)
+            if (fields.isEmpty()) {
                 main.postDelayed({
                     insertChosen(chosen, emptyMap(), settings, fallback)
                 }, 300)
             } else {
-                FillOverlay(this).show(labels) { values ->
+                FillOverlay(this).show(fields) { values ->
                     if (values == null) return@show
                     main.postDelayed({
                         insertChosen(chosen, values, settings, fallback)

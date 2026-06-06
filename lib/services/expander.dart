@@ -224,6 +224,52 @@ class Expander {
     return labels;
   }
 
+  /// Returns the ordered, de-duplicated set of fill-in fields in [body] —
+  /// both free-text {input:Label} fields and {choice:…} pick-lists. The
+  /// returned [FillField.label] is the key to use in the `inputs` map.
+  List<FillField> fillFields(String body) {
+    final fields = <FillField>[];
+    final seen = <String>{};
+    final re = RegExp(r'\{(input|choice):([^}]*)\}', caseSensitive: false);
+    for (final m in re.allMatches(body)) {
+      final kind = m.group(1)!.toLowerCase();
+      if (kind == 'input') {
+        final label = m.group(2)!.trim();
+        if (label.isEmpty || !seen.add(label)) continue;
+        fields.add(FillField(label: label, title: label, options: const []));
+      } else {
+        final (label, options) = parseChoice(m.group(2)!);
+        if (options.isEmpty || !seen.add(label)) continue;
+        final title = label.contains('|') ? 'Choose' : label;
+        fields.add(FillField(label: label, title: title, options: options));
+      }
+    }
+    return fields;
+  }
+
+  /// Parses the text after `choice:` into a (label, options) pair.
+  ///
+  /// `Greeting=A|B|C` → ('Greeting', [A, B, C]); `A|B|C` → ('A|B|C', [A, B, C]),
+  /// where the raw option list doubles as the (stable) map key.
+  static (String, List<String>) parseChoice(String inner) {
+    final eq = inner.indexOf('=');
+    final String label;
+    final String optsPart;
+    if (eq >= 0) {
+      label = inner.substring(0, eq).trim();
+      optsPart = inner.substring(eq + 1);
+    } else {
+      label = inner.trim();
+      optsPart = inner;
+    }
+    final options = optsPart
+        .split('|')
+        .map((o) => o.trim())
+        .where((o) => o.isNotEmpty)
+        .toList();
+    return (label, options);
+  }
+
   _TokenResult _resolveToken(
     String token,
     DateTime now,
@@ -243,6 +289,17 @@ class Expander {
     if (lower.startsWith('input:')) {
       final label = token.substring(token.indexOf(':') + 1).trim();
       return _TokenResult.value(inputs[label] ?? '[$label]');
+    }
+
+    // Pick-list field: {choice:A|B|C} or {choice:Label=A|B|C}. Uses the chosen
+    // value, falling back to the first option when none was supplied yet.
+    if (lower.startsWith('choice:')) {
+      final inner = token.substring(token.indexOf(':') + 1);
+      final (label, options) = parseChoice(inner);
+      if (options.isEmpty) return const _TokenResult.unknown();
+      final v = inputs[label];
+      return _TokenResult.value(
+          (v != null && v.isNotEmpty) ? v : options.first);
     }
 
     // Nested snippet: {snippet:;sig} or {s:;sig}
@@ -324,6 +381,27 @@ class RenderedExpansion {
   const RenderedExpansion({required this.text, this.cursorOffset});
   final String text;
   final int? cursorOffset;
+}
+
+/// A value the user supplies before a snippet expands. [options] empty means a
+/// free-text {input:} field; non-empty means a {choice:} pick-list.
+class FillField {
+  const FillField({
+    required this.label,
+    required this.title,
+    required this.options,
+  });
+
+  /// Key used in the `inputs` map passed to [Expander.expand]/[Expander.render].
+  final String label;
+
+  /// Human-friendly heading shown above the field.
+  final String title;
+
+  /// The choices for a pick-list; empty for a free-text field.
+  final List<String> options;
+
+  bool get isChoice => options.isNotEmpty;
 }
 
 class _TokenResult {

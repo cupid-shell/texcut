@@ -28,6 +28,18 @@ data class ExpansionResult(
 
 data class RenderedText(val text: String, val cursorOffset: Int?)
 
+/**
+ * A value the user supplies before a snippet expands. An empty [options] list
+ * means a free-text {input:} field; a non-empty one means a {choice:} pick-list.
+ */
+data class FillField(
+    val label: String,
+    val title: String,
+    val options: List<String>
+) {
+    val isChoice: Boolean get() = options.isNotEmpty()
+}
+
 private data class Rendered(val text: String, val cursorOffset: Int?)
 
 /**
@@ -146,6 +158,48 @@ class ExpansionEngine {
         return labels
     }
 
+    /**
+     * Ordered, de-duplicated fill-in fields in [body] — both free-text
+     * {input:} fields and {choice:} pick-lists. Mirrors `Expander.fillFields`.
+     */
+    fun fillFields(body: String): List<FillField> {
+        val fields = mutableListOf<FillField>()
+        val seen = mutableSetOf<String>()
+        Regex("\\{(input|choice):([^}]*)\\}", RegexOption.IGNORE_CASE)
+            .findAll(body).forEach {
+                val kind = it.groupValues[1].lowercase()
+                if (kind == "input") {
+                    val label = it.groupValues[2].trim()
+                    if (label.isNotEmpty() && seen.add(label)) {
+                        fields.add(FillField(label, label, emptyList()))
+                    }
+                } else {
+                    val (label, options) = parseChoice(it.groupValues[2])
+                    if (options.isNotEmpty() && seen.add(label)) {
+                        val title = if (label.contains("|")) "Choose" else label
+                        fields.add(FillField(label, title, options))
+                    }
+                }
+            }
+        return fields
+    }
+
+    /** Parses the text after `choice:` into a (label, options) pair. */
+    private fun parseChoice(inner: String): Pair<String, List<String>> {
+        val eq = inner.indexOf('=')
+        val label: String
+        val optsPart: String
+        if (eq >= 0) {
+            label = inner.substring(0, eq).trim()
+            optsPart = inner.substring(eq + 1)
+        } else {
+            label = inner.trim()
+            optsPart = inner
+        }
+        val options = optsPart.split('|').map { it.trim() }.filter { it.isNotEmpty() }
+        return Pair(label, options)
+    }
+
     /** Public render used to re-render a body once fill-in values are known. */
     fun renderText(
         body: String,
@@ -234,6 +288,15 @@ class ExpansionEngine {
         if (lower.startsWith("input:")) {
             val label = token.substring(token.indexOf(':') + 1).trim()
             return TokenResult(inputs[label] ?: "[$label]", handled = true, isCursor = false)
+        }
+
+        if (lower.startsWith("choice:")) {
+            val inner = token.substring(token.indexOf(':') + 1)
+            val (label, options) = parseChoice(inner)
+            if (options.isEmpty()) return TokenResult("", handled = false, isCursor = false)
+            val v = inputs[label]
+            val value = if (!v.isNullOrEmpty()) v else options.first()
+            return TokenResult(value, handled = true, isCursor = false)
         }
 
         if (lower.startsWith("snippet:") || lower.startsWith("s:")) {

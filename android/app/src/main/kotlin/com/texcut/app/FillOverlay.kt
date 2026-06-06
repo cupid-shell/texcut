@@ -16,13 +16,17 @@ import android.widget.TextView
 
 /**
  * A floating form, shown over whatever app the user is in, that collects the
- * values of {input:Label} fields before a snippet is pasted. Requires the
- * "Display over other apps" permission.
+ * values of fill-in fields before a snippet is pasted — free-text {input:}
+ * fields and {choice:} pick-lists. Requires the "Display over other apps"
+ * permission.
  */
 class FillOverlay(private val context: Context) {
 
     companion object {
         fun canShow(context: Context): Boolean = Settings.canDrawOverlays(context)
+
+        private const val CHIP_OFF = "#2A2740"
+        private const val CHIP_ON = "#3D5BD6"
     }
 
     private val windowManager =
@@ -30,13 +34,17 @@ class FillOverlay(private val context: Context) {
     private var root: View? = null
 
     /** [onResult] is called with the entered values, or null if cancelled. */
-    fun show(labels: List<String>, onResult: (Map<String, String>?) -> Unit) {
+    fun show(fields: List<FillField>, onResult: (Map<String, String>?) -> Unit) {
         if (root != null) return
 
         val density = context.resources.displayMetrics.density
         fun dp(v: Int) = (v * density).toInt()
 
-        val fields = mutableMapOf<String, EditText>()
+        val textInputs = mutableMapOf<String, EditText>()
+        // Pre-select the first option for each pick-list so "Insert" is always
+        // valid even if the user doesn't change anything.
+        val chosen = mutableMapOf<String, String>()
+        var firstEdit: EditText? = null
 
         val container = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -54,22 +62,60 @@ class FillOverlay(private val context: Context) {
             setPadding(0, 0, 0, dp(12))
         })
 
-        for (label in labels) {
+        for (field in fields) {
             container.addView(TextView(context).apply {
-                text = label
+                text = field.title
                 setTextColor(Color.parseColor("#C9C5D6"))
                 textSize = 13f
                 setPadding(0, dp(8), 0, dp(2))
             })
-            val edit = EditText(context).apply {
-                hint = label
-                setTextColor(Color.WHITE)
-                setHintTextColor(Color.parseColor("#7C7790"))
-                inputType = InputType.TYPE_CLASS_TEXT or
-                    InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+
+            if (field.isChoice) {
+                chosen[field.label] = field.options.first()
+                val buttons = mutableListOf<Button>()
+                val row = LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                }
+                // Wrap options into rows of up to 3 so long lists stay readable.
+                var line = row
+                container.addView(line)
+                field.options.forEachIndexed { i, opt ->
+                    if (i > 0 && i % 3 == 0) {
+                        line = LinearLayout(context).apply {
+                            orientation = LinearLayout.HORIZONTAL
+                        }
+                        container.addView(line)
+                    }
+                    val btn = Button(context).apply {
+                        text = opt
+                        setAllCaps(false)
+                        setTextColor(Color.WHITE)
+                        background = chipBg(dp(16), i == 0)
+                    }
+                    btn.setOnClickListener {
+                        chosen[field.label] = opt
+                        buttons.forEachIndexed { j, b ->
+                            b.background = chipBg(dp(16), field.options[j] == opt)
+                        }
+                    }
+                    buttons.add(btn)
+                    val lp = LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                    ).apply { setMargins(dp(2), dp(2), dp(2), dp(2)) }
+                    line.addView(btn, lp)
+                }
+            } else {
+                val edit = EditText(context).apply {
+                    hint = field.title
+                    setTextColor(Color.WHITE)
+                    setHintTextColor(Color.parseColor("#7C7790"))
+                    inputType = InputType.TYPE_CLASS_TEXT or
+                        InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                }
+                textInputs[field.label] = edit
+                if (firstEdit == null) firstEdit = edit
+                container.addView(edit)
             }
-            fields[label] = edit
-            container.addView(edit)
         }
 
         val buttons = LinearLayout(context).apply {
@@ -87,7 +133,10 @@ class FillOverlay(private val context: Context) {
         buttons.addView(Button(context).apply {
             text = "Insert"
             setOnClickListener {
-                val values = fields.mapValues { it.value.text.toString() }
+                val values = HashMap<String, String>(chosen)
+                for ((label, edit) in textInputs) {
+                    values[label] = edit.text.toString()
+                }
                 dismiss()
                 onResult(values)
             }
@@ -115,12 +164,18 @@ class FillOverlay(private val context: Context) {
         root = container
         try {
             windowManager.addView(container, params)
-            fields[labels.first()]?.requestFocus()
+            firstEdit?.requestFocus()
         } catch (e: Exception) {
             root = null
             onResult(null)
         }
     }
+
+    private fun chipBg(radius: Int, selected: Boolean): GradientDrawable =
+        GradientDrawable().apply {
+            cornerRadius = radius.toFloat()
+            setColor(Color.parseColor(if (selected) CHIP_ON else CHIP_OFF))
+        }
 
     private fun dismiss() {
         root?.let {

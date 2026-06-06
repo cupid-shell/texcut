@@ -317,6 +317,53 @@ void main() {
     });
   });
 
+  group('choice fields', () {
+    const e = Expander(ExpansionSettings(triggerMode: TriggerMode.instant));
+
+    test('previews the first option when no value is supplied', () {
+      expect(
+        e.render('Good {choice:Morning|Afternoon|Evening}', now: fixedNow).text,
+        'Good Morning',
+      );
+    });
+
+    test('uses the chosen value, keyed by the raw option list', () {
+      expect(
+        e.render('Good {choice:Morning|Afternoon|Evening}',
+            now: fixedNow,
+            inputs: {'Morning|Afternoon|Evening': 'Evening'}).text,
+        'Good Evening',
+      );
+    });
+
+    test('supports an explicit Label=options form', () {
+      final r = e.render('Status: {choice:State=Pending|Approved}',
+          now: fixedNow, inputs: {'State': 'Approved'});
+      expect(r.text, 'Status: Approved');
+    });
+
+    test('fillFields lists choice options and labels', () {
+      final fields = e.fillFields(
+          'Hi {input:Name}, you chose {choice:Pick=Red|Green|Blue}');
+      expect(fields.length, 2);
+      expect(fields[0].label, 'Name');
+      expect(fields[0].isChoice, isFalse);
+      expect(fields[1].label, 'Pick');
+      expect(fields[1].options, ['Red', 'Green', 'Blue']);
+    });
+
+    test('choice value flows through expand', () {
+      final result = e.expand(
+        text: ';g',
+        cursor: 2,
+        snippets: [snip(';g', 'Good {choice:Morning|Evening}')],
+        now: fixedNow,
+        inputs: {'Morning|Evening': 'Evening'},
+      );
+      expect(result!.text, 'Good Evening');
+    });
+  });
+
   group('per-snippet trigger override', () {
     // Global mode is on-delimiter, but this snippet forces instant.
     const expander = Expander(ExpansionSettings(

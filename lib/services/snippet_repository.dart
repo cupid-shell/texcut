@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/expansion_settings.dart';
 import '../models/snippet.dart';
+import 'snippet_merge.dart';
 
 /// Persists snippets and settings in [SharedPreferences] as JSON.
 ///
@@ -25,6 +26,7 @@ class SnippetRepository {
   static const String onboardedKey = 'texcut.onboarded';
   static const String historyKey = 'texcut.history';
   static const String clipsKey = 'texcut.clips';
+  static const String tombstonesKey = 'texcut.tombstones';
 
   final SharedPreferences _prefs;
 
@@ -49,6 +51,25 @@ class SnippetRepository {
   Future<void> saveSnippets(List<Snippet> snippets) async {
     final raw = jsonEncode(snippets.map((s) => s.toJson()).toList());
     await _prefs.setString(snippetsKey, raw);
+  }
+
+  /// Deletion records used to propagate deletions through sync.
+  List<Tombstone> loadTombstones() {
+    final raw = _prefs.getString(tombstonesKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return (jsonDecode(raw) as List<dynamic>)
+          .map((e) => Tombstone.fromJson(e as Map<String, dynamic>))
+          .where((t) => t.shortcut.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveTombstones(List<Tombstone> tombstones) async {
+    await _prefs.setString(
+        tombstonesKey, jsonEncode(tombstones.map((t) => t.toJson()).toList()));
   }
 
   ExpansionSettings loadSettings() {

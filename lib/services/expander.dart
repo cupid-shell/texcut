@@ -60,19 +60,9 @@ class Expander {
   }) {
     if (cursor < 0 || cursor > text.length) return null;
 
-    final mode = settings.triggerMode;
-    var head = text.substring(0, cursor);
-
-    // In on-delimiter mode the firing character is the last typed char; we
-    // match the shortcut that sits immediately before it.
-    String trailing = '';
-    if (mode == TriggerMode.onDelimiter) {
-      if (head.isEmpty) return null;
-      final last = head[head.length - 1];
-      if (!_delimiters.contains(last)) return null;
-      trailing = last;
-      head = head.substring(0, head.length - 1);
-    }
+    final head = text.substring(0, cursor);
+    // Smart case implies case-insensitive matching so "BTW" can match "btw".
+    final caseInsensitive = !settings.caseSensitive || settings.smartCase;
 
     final candidates = snippets
         .where((s) => s.enabled && s.shortcut.isNotEmpty)
@@ -81,14 +71,26 @@ class Expander {
       ..sort((a, b) => b.shortcut.length.compareTo(a.shortcut.length));
 
     for (final s in candidates) {
+      // Each snippet may override the global trigger mode.
+      final mode = s.triggerMode ?? settings.triggerMode;
+      var matchHead = head;
+      String trailing = '';
+      if (mode == TriggerMode.onDelimiter) {
+        if (head.isEmpty) continue;
+        final last = head[head.length - 1];
+        if (!_delimiters.contains(last)) continue;
+        trailing = last;
+        matchHead = head.substring(0, head.length - 1);
+      }
+
       final shortcut = s.shortcut;
-      final hay = settings.caseSensitive ? head : head.toLowerCase();
-      final needle = settings.caseSensitive ? shortcut : shortcut.toLowerCase();
+      final hay = caseInsensitive ? matchHead.toLowerCase() : matchHead;
+      final needle = caseInsensitive ? shortcut.toLowerCase() : shortcut;
       if (!hay.endsWith(needle)) continue;
 
-      final matchStart = head.length - shortcut.length;
+      final matchStart = matchHead.length - shortcut.length;
       if (settings.requireWordBoundary && matchStart > 0) {
-        final before = head[matchStart - 1];
+        final before = matchHead[matchStart - 1];
         // Only block when both sides of the seam are word chars (so a real
         // word wouldn't be split). Symbol-prefixed shortcuts always pass.
         if (_isWordChar(before) && _isWordChar(shortcut[0])) continue;
@@ -103,9 +105,16 @@ class Expander {
         counter: counter,
       );
 
+      var outText = rendered.text;
+      if (settings.smartCase) {
+        final typed = matchHead.substring(matchStart);
+        outText = applySmartCase(typed, shortcut, outText);
+      }
+
       final newText =
-          text.substring(0, matchStart) + rendered.text + trailing + text.substring(cursor);
-      final cursorOffset = rendered.cursorOffset ?? rendered.text.length;
+          text.substring(0, matchStart) + outText + trailing + text.substring(cursor);
+      // Smart-case transforms preserve length, so the caret offset still holds.
+      final cursorOffset = rendered.cursorOffset ?? outText.length;
       return ExpansionResult(
         text: newText,
         cursor: matchStart + cursorOffset,
@@ -113,6 +122,30 @@ class Expander {
       );
     }
     return null;
+  }
+
+  /// Mirrors the typed shortcut's casing onto [text]:
+  ///   ALLCAPS typed → uppercase; Capitalised typed → capitalise first letter.
+  /// Returns [text] unchanged when the typed casing matches the authored
+  /// shortcut or carries no clear casing signal.
+  static String applySmartCase(String typed, String shortcut, String text) {
+    if (text.isEmpty || typed == shortcut) return text;
+    final letters = typed.replaceAll(RegExp('[^A-Za-z]'), '');
+    if (letters.isEmpty) return text;
+    final isAllUpper =
+        letters == letters.toUpperCase() && letters != letters.toLowerCase();
+    if (isAllUpper) return text.toUpperCase();
+    // First alphabetic char of the typed text is uppercase → capitalise.
+    if (letters[0] == letters[0].toUpperCase() &&
+        letters[0] != letters[0].toLowerCase()) {
+      for (var i = 0; i < text.length; i++) {
+        final ch = text[i];
+        if (RegExp('[A-Za-z]').hasMatch(ch)) {
+          return text.substring(0, i) + ch.toUpperCase() + text.substring(i + 1);
+        }
+      }
+    }
+    return text;
   }
 
   /// Expands the dynamic placeholders inside an expansion body.

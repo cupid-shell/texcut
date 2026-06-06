@@ -42,6 +42,17 @@ class TextExpanderAccessibilityService : AccessibilityService() {
     private val store by lazy { SnippetStore(this) }
     private val engine = ExpansionEngine()
     private val main = Handler(Looper.getMainLooper())
+    private val undoOverlay by lazy { UndoOverlay(this) }
+
+    /** The most recent expansion, so the "Undo" chip can revert it. */
+    private data class LastExpansion(
+        val start: Int,
+        val insertedText: String,
+        val shortcut: String
+    )
+
+    @Volatile
+    private var lastExpansion: LastExpansion? = null
 
     @Volatile
     private var selfEdit = false
@@ -122,10 +133,13 @@ class TextExpanderAccessibilityService : AccessibilityService() {
         val labels = engine.inputLabels(result.rawExpansion)
         if (labels.isEmpty()) {
             // No fill-in fields: paste the rendered text directly.
-            val applied = pasteInto(source, result.replaceStart, result.replaceEnd,
-                result.insertText, result.cursor) ||
-                setTextWhole(source, result.text, result.cursor)
+            val pasted = pasteInto(source, result.replaceStart, result.replaceEnd,
+                result.insertText, result.cursor)
+            val applied = pasted || setTextWhole(source, result.text, result.cursor)
             if (applied) recordSuccess(result, counter, settings)
+            if (pasted) {
+                maybeShowUndo(settings, result.replaceStart, result.insertText, result.shortcut)
+            }
             return
         }
 
@@ -173,9 +187,10 @@ class TextExpanderAccessibilityService : AccessibilityService() {
                 else text.length
             val r = engine.expand(text, cursorPos, snippets, settings, clip, Date(), counter, values)
             if (r != null) {
-                val applied = pasteInto(node, r.replaceStart, r.replaceEnd, r.insertText, r.cursor) ||
-                    setTextWhole(node, r.text, r.cursor)
+                val pasted = pasteInto(node, r.replaceStart, r.replaceEnd, r.insertText, r.cursor)
+                val applied = pasted || setTextWhole(node, r.text, r.cursor)
                 if (applied) recordSuccess(r, counter, settings)
+                if (pasted) maybeShowUndo(settings, r.replaceStart, r.insertText, r.shortcut)
                 return
             }
         }
@@ -186,7 +201,10 @@ class TextExpanderAccessibilityService : AccessibilityService() {
         val caret = original.replaceStart + (rr.cursorOffset ?: rr.text.length)
         val applied = pasteInto(
             node, original.replaceStart, original.replaceEnd, rr.text, caret)
-        if (applied) recordSuccess(original, counter, settings)
+        if (applied) {
+            recordSuccess(original, counter, settings)
+            maybeShowUndo(settings, original.replaceStart, rr.text, original.shortcut)
+        }
     }
 
     /** Opens the quick-search launcher; on choice, inserts over the trigger. */
@@ -285,6 +303,42 @@ class TextExpanderAccessibilityService : AccessibilityService() {
         store.addHistory(result.shortcut, lastAppLabel)
         if (result.usedCounter) store.setCounter(counter + 1)
         if (settings.hapticFeedback) vibrate()
+    }
+
+    /**
+     * Shows the transient "Undo" chip for the expansion that just landed at
+     * [start] (covering [insertedText]), letting the user revert it to
+     * [shortcut]. Gated on the setting and the draw-over-apps permission.
+     */
+    private fun maybeShowUndo(
+        settings: Settings,
+        start: Int,
+        insertedText: String,
+        shortcut: String
+    ) {
+        if (!settings.undoEnabled || insertedText.isEmpty()) return
+        if (!FillOverlay.canShow(this)) return
+        lastExpansion = LastExpansion(start, insertedText, shortcut)
+        main.postDelayed({
+            undoOverlay.show(shortcut) { performUndo(settings) }
+        }, 150)
+    }
+
+    /** Reverts the last expansion: puts the original shortcut back in place. */
+    private fun performUndo(settings: Settings) {
+        val last = lastExpansion ?: return
+        lastExpansion = null
+        val node = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return
+        val text = node.text?.toString() ?: return
+        val start = last.start
+        val end = start + last.insertedText.length
+        // Only undo if our inserted text is still exactly where we left it, so
+        // we never clobber something the user typed afterwards.
+        if (start < 0 || end > text.length) return
+        if (text.substring(start, end) != last.insertedText) return
+        if (pasteInto(node, start, end, last.shortcut, start + last.shortcut.length)) {
+            if (settings.hapticFeedback) vibrate()
+        }
     }
 
     /**
@@ -415,5 +469,15 @@ class TextExpanderAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         // No long-running work to interrupt.
+    }
+
+    override fun onUnbind(intent: android.content.Intent?): Boolean {
+        // Make sure no transient chip is left floating if the service stops.
+        try {
+            undoOverlay.dismiss()
+        } catch (e: Exception) {
+            // Best-effort cleanup.
+        }
+        return super.onUnbind(intent)
     }
 }

@@ -53,16 +53,9 @@ class ExpansionEngine {
     ): ExpansionResult? {
         if (cursor < 0 || cursor > text.length) return null
 
-        var head = text.substring(0, cursor)
-        var trailing = ""
-
-        if (settings.triggerMode == "onDelimiter") {
-            if (head.isEmpty()) return null
-            val last = head.last()
-            if (!delimiters.contains(last)) return null
-            trailing = last.toString()
-            head = head.substring(0, head.length - 1)
-        }
+        val head = text.substring(0, cursor)
+        // Smart case implies case-insensitive matching so "BTW" can match "btw".
+        val caseInsensitive = !settings.caseSensitive || settings.smartCase
 
         val lookup = snippets.associate { it.shortcut to it.expansion }
         val candidates = snippets
@@ -70,21 +63,37 @@ class ExpansionEngine {
             .sortedByDescending { it.shortcut.length }
 
         for (s in candidates) {
-            val hay = if (settings.caseSensitive) head else head.lowercase()
-            val needle =
-                if (settings.caseSensitive) s.shortcut else s.shortcut.lowercase()
+            // Each snippet may override the global trigger mode.
+            val mode = if (s.triggerMode.isNotEmpty()) s.triggerMode else settings.triggerMode
+            var matchHead = head
+            var trailing = ""
+            if (mode == "onDelimiter") {
+                if (head.isEmpty()) continue
+                val last = head.last()
+                if (!delimiters.contains(last)) continue
+                trailing = last.toString()
+                matchHead = head.substring(0, head.length - 1)
+            }
+
+            val hay = if (caseInsensitive) matchHead.lowercase() else matchHead
+            val needle = if (caseInsensitive) s.shortcut.lowercase() else s.shortcut
             if (!hay.endsWith(needle)) continue
 
-            val matchStart = head.length - s.shortcut.length
+            val matchStart = matchHead.length - s.shortcut.length
             if (settings.requireWordBoundary && matchStart > 0) {
-                val before = head[matchStart - 1]
+                val before = matchHead[matchStart - 1]
                 if (isWordChar(before) && isWordChar(s.shortcut[0])) continue
             }
 
             val rendered = render(s.expansion, settings, now, clipboard, lookup, inputs, counter, 0)
-            val newText = head.substring(0, matchStart) +
-                rendered.text + trailing + text.substring(cursor)
-            val offset = rendered.cursorOffset ?: rendered.text.length
+            var outText = rendered.text
+            if (settings.smartCase) {
+                val typed = matchHead.substring(matchStart)
+                outText = applySmartCase(typed, s.shortcut, outText)
+            }
+            val newText = matchHead.substring(0, matchStart) +
+                outText + trailing + text.substring(cursor)
+            val offset = rendered.cursorOffset ?: outText.length
             // The shortcut span to select/replace is [matchStart, cursor minus
             // the trailing delimiter] = [matchStart, matchStart + shortcutLen].
             val replaceEnd = matchStart + s.shortcut.length
@@ -93,7 +102,7 @@ class ExpansionEngine {
                 cursor = matchStart + offset,
                 replaceStart = matchStart,
                 replaceEnd = replaceEnd,
-                insertText = rendered.text,
+                insertText = outText,
                 shortcut = s.shortcut,
                 usedCounter = s.expansion.contains("{counter}", ignoreCase = true),
                 rawExpansion = s.expansion,
@@ -104,6 +113,28 @@ class ExpansionEngine {
 
     private fun isWordChar(c: Char): Boolean =
         c in '0'..'9' || c in 'A'..'Z' || c in 'a'..'z'
+
+    /**
+     * Mirrors the typed shortcut's casing onto [text] (kept in lock-step with
+     * `Expander.applySmartCase` on the Dart side).
+     */
+    private fun applySmartCase(typed: String, shortcut: String, text: String): String {
+        if (text.isEmpty() || typed == shortcut) return text
+        val letters = typed.filter { it in 'A'..'Z' || it in 'a'..'z' }
+        if (letters.isEmpty()) return text
+        val isAllUpper = letters == letters.uppercase() && letters != letters.lowercase()
+        if (isAllUpper) return text.uppercase()
+        val first = letters[0]
+        if (first.isLetter() && first == first.uppercaseChar()) {
+            for (i in text.indices) {
+                val ch = text[i]
+                if (ch in 'A'..'Z' || ch in 'a'..'z') {
+                    return text.substring(0, i) + ch.uppercaseChar() + text.substring(i + 1)
+                }
+            }
+        }
+        return text
+    }
 
     /** Ordered, de-duplicated {input:Label} field labels found in [body]. */
     fun inputLabels(body: String): List<String> {

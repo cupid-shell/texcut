@@ -108,6 +108,15 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.open_in_new_rounded),
             onTap: state.openOverlaySettings,
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.undo_rounded),
+            title: const Text('Undo chip'),
+            subtitle: const Text(
+                'Show a brief “Undo” button after an expansion (needs the '
+                'draw-over-apps permission)'),
+            value: s.undoEnabled,
+            onChanged: (v) => state.updateSettings(s.copyWith(undoEnabled: v)),
+          ),
           ListTile(
             leading: Icon(
               state.serviceConnected
@@ -156,8 +165,18 @@ class SettingsScreen extends StatelessWidget {
             title: const Text('Case sensitive'),
             subtitle: const Text('“;BR” and “;br” are treated as different'),
             value: s.caseSensitive,
-            onChanged: (v) =>
-                state.updateSettings(s.copyWith(caseSensitive: v)),
+            onChanged: s.smartCase
+                ? null
+                : (v) => state.updateSettings(s.copyWith(caseSensitive: v)),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.auto_awesome_rounded),
+            title: const Text('Smart case'),
+            subtitle: const Text(
+                'Match any case and mirror it: btw→by the way, '
+                'Btw→By the way, BTW→BY THE WAY'),
+            value: s.smartCase,
+            onChanged: (v) => state.updateSettings(s.copyWith(smartCase: v)),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.vibration_rounded),

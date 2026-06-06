@@ -35,6 +35,7 @@ class AppState extends ChangeNotifier {
   bool _onboarded = false;
   List<String> _excludedApps = [];
   List<ClipEntry> _clips = [];
+  List<Tombstone> _tombstones = [];
 
   bool get needsOnboarding => !_onboarded;
   List<ClipEntry> get clips => List.unmodifiable(_clips);
@@ -129,6 +130,7 @@ class AppState extends ChangeNotifier {
     _excludedApps = _repo.loadExcludedApps();
     _onboarded = _repo.loadOnboarded();
     _clips = _repo.loadClips();
+    _tombstones = _repo.loadTombstones();
     await refreshServiceStatus();
     notifyListeners();
   }
@@ -282,8 +284,22 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> delete(String id) async {
+    final removed = _snippets.where((s) => s.id == id).toList();
     _snippets.removeWhere((s) => s.id == id);
+    await _recordDeletions(removed);
     await _persistSnippets();
+  }
+
+  /// Adds tombstones for [removed] snippets so the deletions propagate via sync.
+  Future<void> _recordDeletions(Iterable<Snippet> removed) async {
+    final now = DateTime.now();
+    for (final s in removed) {
+      if (s.shortcut.isEmpty) continue;
+      _tombstones.removeWhere((t) => t.shortcut == s.shortcut);
+      _tombstones.add(Tombstone(shortcut: s.shortcut, deletedAt: now));
+    }
+    _tombstones = mergeTombstones(_tombstones, const [], now: now);
+    await _repo.saveTombstones(_tombstones);
   }
 
   Future<void> toggleEnabled(String id, bool enabled) async {
@@ -327,7 +343,9 @@ class AppState extends ChangeNotifier {
   // ---- Bulk actions over a set of snippet ids ----
 
   Future<void> deleteMany(Set<String> ids) async {
+    final removed = _snippets.where((s) => ids.contains(s.id)).toList();
     _snippets.removeWhere((s) => ids.contains(s.id));
+    await _recordDeletions(removed);
     await _persistSnippets();
   }
 
@@ -382,8 +400,15 @@ class AppState extends ChangeNotifier {
     final incoming = (doc['snippets'] as List<dynamic>)
         .map((e) => Snippet.fromJson(e as Map<String, dynamic>))
         .toList();
-    // Newest-wins union so edits on either device survive.
-    _snippets = mergeSnippets(_snippets, incoming);
+    final incomingTombs = (doc['tombstones'] as List<dynamic>? ?? [])
+        .map((e) => Tombstone.fromJson(e as Map<String, dynamic>))
+        .toList();
+    // Merge deletions first, then take the newest-wins union and drop anything
+    // a tombstone says was deleted (unless it was re-created afterwards).
+    _tombstones = mergeTombstones(_tombstones, incomingTombs);
+    final unioned = mergeSnippets(_snippets, incoming);
+    _snippets = applyTombstones(unioned, _tombstones);
+    await _repo.saveTombstones(_tombstones);
     await _persistSnippets(silent: true);
   }
 
@@ -395,6 +420,7 @@ class AppState extends ChangeNotifier {
       'exportedAt': DateTime.now().toIso8601String(),
       'settings': _settings.toJson(),
       'snippets': _snippets.map((s) => s.toJson()).toList(),
+      'tombstones': _tombstones.map((t) => t.toJson()).toList(),
     };
     return const JsonEncoder.withIndent('  ').convert(doc);
   }

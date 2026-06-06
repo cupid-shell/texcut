@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/expansion_settings.dart';
 import '../../models/snippet.dart';
 import '../../services/expander.dart';
 import '../../state/app_state.dart';
@@ -29,6 +30,7 @@ class _EditSnippetScreenState extends State<EditSnippetScreen> {
   late final TextEditingController _group;
   late final TextEditingController _tryIt;
   bool _enabled = true;
+  TriggerMode? _triggerMode;
 
   bool get _isNew => widget.snippet == null;
 
@@ -43,6 +45,7 @@ class _EditSnippetScreenState extends State<EditSnippetScreen> {
     _group = TextEditingController(text: s?.group ?? 'General');
     _tryIt = TextEditingController();
     _enabled = s?.enabled ?? true;
+    _triggerMode = s?.triggerMode;
     _expansion.addListener(() => setState(() {}));
   }
 
@@ -68,6 +71,7 @@ class _EditSnippetScreenState extends State<EditSnippetScreen> {
       label: _label.text.trim(),
       group: _group.text.trim().isEmpty ? 'General' : _group.text.trim(),
       enabled: _enabled,
+      triggerMode: _triggerMode,
     );
     await state.upsert(updated);
     if (mounted) Navigator.of(context).pop();
@@ -192,6 +196,30 @@ class _EditSnippetScreenState extends State<EditSnippetScreen> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<TriggerMode?>(
+                    initialValue: _triggerMode,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Trigger',
+                      prefixIcon: Icon(Icons.bolt_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: null,
+                        child: Text('Use default setting'),
+                      ),
+                      DropdownMenuItem(
+                        value: TriggerMode.instant,
+                        child: Text('Instant'),
+                      ),
+                      DropdownMenuItem(
+                        value: TriggerMode.onDelimiter,
+                        child: Text('After a space / punctuation'),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _triggerMode = v),
+                  ),
                   const SizedBox(height: 4),
                   SwitchListTile(
                     value: _enabled,

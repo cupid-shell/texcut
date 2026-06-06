@@ -60,7 +60,9 @@ class ExpansionSettings {
     this.triggerMode = TriggerMode.onDelimiter,
     this.requireWordBoundary = true,
     this.caseSensitive = true,
+    this.smartCase = false,
     this.hapticFeedback = true,
+    this.undoEnabled = true,
     this.dateFormat = 'yyyy-MM-dd',
     this.timeFormat = 'HH:mm',
     this.sortMode = SortMode.alphabetical,
@@ -75,7 +77,14 @@ class ExpansionSettings {
   final TriggerMode triggerMode;
   final bool requireWordBoundary;
   final bool caseSensitive;
+
+  /// When on, matching ignores case and the expansion mirrors the typed case
+  /// (e.g. `btw`→`by the way`, `Btw`→`By the way`, `BTW`→`BY THE WAY`).
+  final bool smartCase;
   final bool hapticFeedback;
+
+  /// Show a brief "Undo" chip after a system-wide expansion fires.
+  final bool undoEnabled;
   final String dateFormat;
   final String timeFormat;
   final SortMode sortMode;
@@ -93,7 +102,9 @@ class ExpansionSettings {
     TriggerMode? triggerMode,
     bool? requireWordBoundary,
     bool? caseSensitive,
+    bool? smartCase,
     bool? hapticFeedback,
+    bool? undoEnabled,
     String? dateFormat,
     String? timeFormat,
     SortMode? sortMode,
@@ -107,7 +118,9 @@ class ExpansionSettings {
       triggerMode: triggerMode ?? this.triggerMode,
       requireWordBoundary: requireWordBoundary ?? this.requireWordBoundary,
       caseSensitive: caseSensitive ?? this.caseSensitive,
+      smartCase: smartCase ?? this.smartCase,
       hapticFeedback: hapticFeedback ?? this.hapticFeedback,
+      undoEnabled: undoEnabled ?? this.undoEnabled,
       dateFormat: dateFormat ?? this.dateFormat,
       timeFormat: timeFormat ?? this.timeFormat,
       sortMode: sortMode ?? this.sortMode,
@@ -123,7 +136,9 @@ class ExpansionSettings {
         'triggerMode': triggerMode.id,
         'requireWordBoundary': requireWordBoundary,
         'caseSensitive': caseSensitive,
+        'smartCase': smartCase,
         'hapticFeedback': hapticFeedback,
+        'undoEnabled': undoEnabled,
         'dateFormat': dateFormat,
         'timeFormat': timeFormat,
         'sortMode': sortMode.id,
@@ -139,7 +154,9 @@ class ExpansionSettings {
         triggerMode: TriggerModeX.fromId(json['triggerMode'] as String?),
         requireWordBoundary: json['requireWordBoundary'] as bool? ?? true,
         caseSensitive: json['caseSensitive'] as bool? ?? true,
+        smartCase: json['smartCase'] as bool? ?? false,
         hapticFeedback: json['hapticFeedback'] as bool? ?? true,
+        undoEnabled: json['undoEnabled'] as bool? ?? true,
         dateFormat: json['dateFormat'] as String? ?? 'yyyy-MM-dd',
         timeFormat: json['timeFormat'] as String? ?? 'HH:mm',
         sortMode: SortModeX.fromId(json['sortMode'] as String?),

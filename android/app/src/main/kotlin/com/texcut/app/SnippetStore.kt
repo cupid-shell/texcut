@@ -4,12 +4,18 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** A single expansion rule, mirroring the Dart `Snippet` model. */
+/**
+ * A single expansion rule, mirroring the Dart `Snippet` model.
+ *
+ * [triggerMode] is a per-snippet override ("instant" / "onDelimiter"); an empty
+ * string means "follow the global setting".
+ */
 data class Snippet(
     val shortcut: String,
     val expansion: String,
     val enabled: Boolean,
-    val label: String = ""
+    val label: String = "",
+    val triggerMode: String = ""
 )
 
 /** Trigger behaviour shared with the Flutter UI. */
@@ -18,7 +24,9 @@ data class Settings(
     val triggerMode: String = "onDelimiter",
     val requireWordBoundary: Boolean = true,
     val caseSensitive: Boolean = true,
+    val smartCase: Boolean = false,
     val hapticFeedback: Boolean = true,
+    val undoEnabled: Boolean = true,
     val dateFormat: String = "yyyy-MM-dd",
     val timeFormat: String = "HH:mm",
     val launcherEnabled: Boolean = true,
@@ -49,7 +57,8 @@ class SnippetStore(context: Context) {
                     shortcut = o.optString("shortcut", ""),
                     expansion = o.optString("expansion", ""),
                     enabled = o.optBoolean("enabled", true),
-                    label = o.optString("label", "")
+                    label = o.optString("label", ""),
+                    triggerMode = o.optString("triggerMode", "")
                 )
             }.filter { it.shortcut.isNotEmpty() }
         } catch (e: Exception) {
@@ -177,7 +186,9 @@ class SnippetStore(context: Context) {
                 triggerMode = o.optString("triggerMode", "onDelimiter"),
                 requireWordBoundary = o.optBoolean("requireWordBoundary", true),
                 caseSensitive = o.optBoolean("caseSensitive", true),
+                smartCase = o.optBoolean("smartCase", false),
                 hapticFeedback = o.optBoolean("hapticFeedback", true),
+                undoEnabled = o.optBoolean("undoEnabled", true),
                 dateFormat = o.optString("dateFormat", "yyyy-MM-dd"),
                 timeFormat = o.optString("timeFormat", "HH:mm"),
                 launcherEnabled = o.optBoolean("launcherEnabled", true),

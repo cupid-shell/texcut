@@ -279,4 +279,76 @@ void main() {
     expect(result!.text, '<b></b>');
     expect(result.cursor, 3);
   });
+
+  group('smart case', () {
+    const expander = Expander(ExpansionSettings(
+      triggerMode: TriggerMode.instant,
+      smartCase: true,
+    ));
+
+    test('lowercase typed keeps the authored casing', () {
+      final r = expander.expand(
+        text: 'btw',
+        cursor: 3,
+        snippets: [snip('btw', 'by the way')],
+        now: fixedNow,
+      );
+      expect(r!.text, 'by the way');
+    });
+
+    test('capitalised typed capitalises the first letter', () {
+      final r = expander.expand(
+        text: 'Btw',
+        cursor: 3,
+        snippets: [snip('btw', 'by the way')],
+        now: fixedNow,
+      );
+      expect(r!.text, 'By the way');
+    });
+
+    test('all-caps typed uppercases the whole expansion', () {
+      final r = expander.expand(
+        text: 'BTW',
+        cursor: 3,
+        snippets: [snip('btw', 'by the way')],
+        now: fixedNow,
+      );
+      expect(r!.text, 'BY THE WAY');
+    });
+  });
+
+  group('per-snippet trigger override', () {
+    // Global mode is on-delimiter, but this snippet forces instant.
+    const expander = Expander(ExpansionSettings(
+      triggerMode: TriggerMode.onDelimiter,
+    ));
+
+    Snippet instantSnip(String shortcut, String expansion) => Snippet(
+          id: shortcut,
+          shortcut: shortcut,
+          expansion: expansion,
+          triggerMode: TriggerMode.instant,
+        );
+
+    test('instant override fires without a delimiter', () {
+      final r = expander.expand(
+        text: ';br',
+        cursor: 3,
+        snippets: [instantSnip(';br', 'Best regards')],
+        now: fixedNow,
+      );
+      expect(r, isNotNull);
+      expect(r!.text, 'Best regards');
+    });
+
+    test('no override still requires the global delimiter', () {
+      final r = expander.expand(
+        text: ';br',
+        cursor: 3,
+        snippets: [snip(';br', 'Best regards')],
+        now: fixedNow,
+      );
+      expect(r, isNull);
+    });
+  });
 }

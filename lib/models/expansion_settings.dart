@@ -20,6 +20,22 @@ extension TriggerModeX on TriggerMode {
           orElse: () => TriggerMode.onDelimiter);
 }
 
+/// Which Material theme brightness the app follows.
+enum AppThemeMode { system, light, dark }
+
+extension AppThemeModeX on AppThemeMode {
+  String get id => name;
+  String get label => switch (this) {
+        AppThemeMode.system => 'Follow system',
+        AppThemeMode.light => 'Light',
+        AppThemeMode.dark => 'Dark',
+      };
+
+  static AppThemeMode fromId(String? id) =>
+      AppThemeMode.values.firstWhere((m) => m.id == id,
+          orElse: () => AppThemeMode.system);
+}
+
 /// How the snippet list is ordered (pinned items always come first).
 enum SortMode { alphabetical, mostUsed, recentlyUsed }
 
@@ -50,6 +66,8 @@ class ExpansionSettings {
     this.sortMode = SortMode.alphabetical,
     this.launcherEnabled = true,
     this.launcherTrigger = ';;',
+    this.themeMode = AppThemeMode.system,
+    this.accentColor = 0xFF4C5BD4,
   });
 
   /// Master switch for system-wide expansion (independent of the OS toggle).
@@ -66,6 +84,10 @@ class ExpansionSettings {
   final bool launcherEnabled;
   final String launcherTrigger;
 
+  /// In-app appearance: theme brightness and the accent (seed) colour.
+  final AppThemeMode themeMode;
+  final int accentColor;
+
   ExpansionSettings copyWith({
     bool? serviceEnabled,
     TriggerMode? triggerMode,
@@ -77,6 +99,8 @@ class ExpansionSettings {
     SortMode? sortMode,
     bool? launcherEnabled,
     String? launcherTrigger,
+    AppThemeMode? themeMode,
+    int? accentColor,
   }) {
     return ExpansionSettings(
       serviceEnabled: serviceEnabled ?? this.serviceEnabled,
@@ -89,6 +113,8 @@ class ExpansionSettings {
       sortMode: sortMode ?? this.sortMode,
       launcherEnabled: launcherEnabled ?? this.launcherEnabled,
       launcherTrigger: launcherTrigger ?? this.launcherTrigger,
+      themeMode: themeMode ?? this.themeMode,
+      accentColor: accentColor ?? this.accentColor,
     );
   }
 
@@ -103,6 +129,8 @@ class ExpansionSettings {
         'sortMode': sortMode.id,
         'launcherEnabled': launcherEnabled,
         'launcherTrigger': launcherTrigger,
+        'themeMode': themeMode.id,
+        'accentColor': accentColor,
       };
 
   factory ExpansionSettings.fromJson(Map<String, dynamic> json) =>
@@ -117,5 +145,7 @@ class ExpansionSettings {
         sortMode: SortModeX.fromId(json['sortMode'] as String?),
         launcherEnabled: json['launcherEnabled'] as bool? ?? true,
         launcherTrigger: json['launcherTrigger'] as String? ?? ';;',
+        themeMode: AppThemeModeX.fromId(json['themeMode'] as String?),
+        accentColor: json['accentColor'] as int? ?? 0xFF4C5BD4,
       );
 }

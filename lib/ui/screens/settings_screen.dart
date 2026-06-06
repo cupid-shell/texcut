@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/expansion_settings.dart';
 import '../../services/drive_sync.dart';
 import '../../state/app_state.dart';
+import '../theme.dart';
 import '../widgets/enable_guide_sheet.dart';
 import 'about_screen.dart';
 import 'clips_screen.dart';
@@ -24,6 +25,45 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
+          _sectionHeader(context, 'Appearance'),
+          ListTile(
+            leading: const Icon(Icons.brightness_6_rounded),
+            title: const Text('Theme'),
+            subtitle: Text(s.themeMode.label),
+            onTap: () => _pickThemeMode(context, state),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.palette_rounded,
+                        size: 22,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 16),
+                    Text('Accent colour',
+                        style: Theme.of(context).textTheme.bodyLarge),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final color in TexcutTheme.accents)
+                      _AccentSwatch(
+                        color: color,
+                        selected: s.accentColor == color.toARGB32(),
+                        onTap: () => state.updateSettings(
+                            s.copyWith(accentColor: color.toARGB32())),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           _sectionHeader(context, 'System-wide expansion'),
           SwitchListTile(
             secondary: const Icon(Icons.public_rounded),
@@ -244,6 +284,33 @@ class SettingsScreen extends StatelessWidget {
         ),
       );
 
+  void _pickThemeMode(BuildContext context, AppState state) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: RadioGroup<AppThemeMode>(
+          groupValue: state.settings.themeMode,
+          onChanged: (v) {
+            if (v != null) {
+              state.updateSettings(state.settings.copyWith(themeMode: v));
+            }
+            Navigator.pop(context);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final mode in AppThemeMode.values)
+                RadioListTile<AppThemeMode>(
+                  value: mode,
+                  title: Text(mode.label),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _pickTriggerMode(BuildContext context, AppState state) {
     showModalBottomSheet<void>(
       context: context,
@@ -355,6 +422,44 @@ class SettingsScreen extends StatelessWidget {
         const SnackBar(content: Text('That doesn’t look like a valid export')),
       );
     }
+  }
+}
+
+/// A tappable accent-colour swatch with a check when selected.
+class _AccentSwatch extends StatelessWidget {
+  const _AccentSwatch({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: selected
+              ? Border.all(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  width: 3,
+                )
+              : null,
+        ),
+        child: selected
+            ? const Icon(Icons.check_rounded, color: Colors.white, size: 22)
+            : null,
+      ),
+    );
   }
 }
 

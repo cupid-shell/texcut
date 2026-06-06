@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'models/expansion_settings.dart';
 import 'services/drive_sync.dart';
 import 'services/snippet_repository.dart';
 import 'state/app_state.dart';
@@ -35,12 +36,20 @@ class TexcutApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.select<AppState, ExpansionSettings>(
+      (s) => s.settings,
+    );
+    final seed = Color(settings.accentColor);
     return MaterialApp(
       title: 'texcut',
       debugShowCheckedModeBanner: false,
-      theme: TexcutTheme.light(),
-      darkTheme: TexcutTheme.dark(),
-      themeMode: ThemeMode.system,
+      theme: TexcutTheme.light(seed: seed),
+      darkTheme: TexcutTheme.dark(seed: seed),
+      themeMode: switch (settings.themeMode) {
+        AppThemeMode.system => ThemeMode.system,
+        AppThemeMode.light => ThemeMode.light,
+        AppThemeMode.dark => ThemeMode.dark,
+      },
       home: const SplashScreen(),
     );
   }

@@ -44,6 +44,8 @@ void main() {
         sortMode: SortMode.mostUsed,
         launcherEnabled: false,
         launcherTrigger: '::',
+        themeMode: AppThemeMode.dark,
+        accentColor: 0xFF00897B,
       );
       final restored = ExpansionSettings.fromJson(s.toJson());
       expect(restored.serviceEnabled, false);
@@ -53,6 +55,8 @@ void main() {
       expect(restored.sortMode, SortMode.mostUsed);
       expect(restored.launcherEnabled, false);
       expect(restored.launcherTrigger, '::');
+      expect(restored.themeMode, AppThemeMode.dark);
+      expect(restored.accentColor, 0xFF00897B);
     });
 
     test('defaults are sensible', () {
@@ -60,6 +64,8 @@ void main() {
       expect(s.serviceEnabled, true);
       expect(s.triggerMode, TriggerMode.onDelimiter);
       expect(s.requireWordBoundary, true);
+      expect(s.themeMode, AppThemeMode.system);
+      expect(s.accentColor, 0xFF4C5BD4);
     });
   });
 }
